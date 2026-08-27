@@ -1,0 +1,23 @@
+{
+  "_comment": "Map these CSS selectors to YOUR ZSmart v9 instance using DevTools (F12 -> right-click element -> Copy selector). ZSmart deployments differ, so these ship as best-guess placeholders. Each field accepts an array of selectors; the first one that matches wins. Leave an array empty to skip a field. The extension still works without any of these via the 'visible text' and 'selection' fallback capture modes.",
+
+  "frameHint": "ZSmart usually renders modules in iframes. The content script runs in all frames automatically; selectors are evaluated per-frame.",
+
+  "fields": {
+    "ticketId": ["#ticketNo", "[id*='ticketNo']", "[id*='orderNo']", ".ticket-id"],
+    "title": ["#title", "[id*='title']", "[id*='subject']"],
+    "status": ["[id*='status']", ".ticket-status"],
+    "priority": ["[id*='priority']", "[id*='urgency']"],
+    "category": ["[id*='category']", "[id*='faultType']", "[id*='serviceType']"],
+    "customer": ["[id*='custName']", "[id*='customer']"],
+    "description": ["#description", "[id*='description']", "[id*='remark']", "textarea[id*='desc']"],
+    "comments": ["[id*='dealRecord']", "[id*='processRecord']", "[id*='history'] tr"]
+  },
+
+  "containerSelectors": [
+    "[id*='ticketDetail']",
+    "[id*='orderDetail']",
+    ".detail-panel",
+    "form"
+  ]
+}

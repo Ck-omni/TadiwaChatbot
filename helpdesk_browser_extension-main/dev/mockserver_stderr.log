@@ -1,0 +1,6 @@
+::ffff:127.0.0.1 - - [07/Aug/2026 11:09:03] "GET /mock_ticket.html HTTP/1.1" 200 -
+::1 - - [07/Aug/2026 11:09:47] "GET /mock_ticket.html HTTP/1.1" 200 -
+::1 - - [07/Aug/2026 11:09:48] "GET /mock_ticket_frame.html HTTP/1.1" 200 -
+::1 - - [07/Aug/2026 11:09:48] code 404, message File not found
+::1 - - [07/Aug/2026 11:09:48] "GET /favicon.ico HTTP/1.1" 404 -
+::1 - - [07/Aug/2026 11:21:33] "GET /mock_ticket.html HTTP/1.1" 304 -

@@ -1,0 +1,246 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider     = "prisma-client"
+  previewFeatures = ["postgresqlExtensions"]
+  output       = "../generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+  extensions = [vector]
+}
+
+enum Role {
+  AGENT
+  TEAM_LEAD
+  ADMIN
+}
+ 
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+ 
+enum EscalationStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+
+model User{
+  id Int @id @default(autoincrement())
+  email String @unique
+  passwordHash String @map("password_hash")
+  fullName String @map("full_name")
+  role          Role           @default(AGENT)
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  // Sessions I started — for an AI session this is just "my session"; for a
+  // peer thread this is one of the two participants (see ChatSession.recipientId).
+  chatSessions         ChatSession[] @relation("ChatSessionOwner")
+  // Peer threads where I'm the OTHER participant, not the one who started it.
+  receivedChatSessions ChatSession[] @relation("ChatSessionRecipient")
+  // Every message I've actually sent, across AI sessions and peer threads alike.
+  sentMessages         Message[]     @relation("MessageSender")
+  refreshTokens        RefreshToken[]
+  // Weekly resolution targets set FOR me (by a team lead/admin).
+  productivityTargets       ProductivityTarget[] @relation("ProductivityTargetUser")
+  // Weekly resolution targets I set for others (only ever populated for
+  // TEAM_LEAD/ADMIN accounts, but not enforced at the schema level).
+  productivityTargetsAuthored ProductivityTarget[] @relation("ProductivityTargetSetBy")
+  // My own shift blocks (the "Personal Timeline").
+  shiftBlocks         ShiftBlock[] @relation("ShiftBlockUser")
+  // Shift blocks I assigned to others (only ever populated for TEAM_LEAD/ADMIN
+  // accounts, but not enforced at the schema level).
+  shiftBlocksAuthored ShiftBlock[] @relation("ShiftBlockCreatedBy")
+  notifications       Notification[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  token     String    @unique
+  userId    Int       @map("user_id")
+  user      User      @relation(fields: [userId], references: [id])
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+ 
+  @@map("refresh_tokens")
+}
+
+model ChatSession {
+  id          String      @id @default(uuid()) @db.Uuid
+  // Participant A. For an AI session this is just "the user"; for a peer
+  // thread, the service layer canonically stores the smaller user id here
+  // (see apps/chats) so a given pair only ever gets ONE session either way
+  // it's addressed — that's what @@unique([userId, recipientId]) enforces.
+  userId      Int         @map("user_id")
+  user        User        @relation("ChatSessionOwner", fields: [userId], references: [id])
+  // Participant B — NULL means this is a user<->AI session (unchanged
+  // original meaning); non-null means a peer<->peer thread.
+  recipientId Int?        @map("recipient_id")
+  recipient   User?       @relation("ChatSessionRecipient", fields: [recipientId], references: [id])
+  startedAt   DateTime    @default(now()) @map("started_at")
+  endedAt     DateTime?   @map("ended_at")
+  messages    Message[]
+  escalation  Escalation?
+
+  @@unique([userId, recipientId])
+  @@map("chat_sessions")
+}
+
+model Message {
+  id        Int          @id @default(autoincrement())
+  sessionId String       @db.Uuid @map("session_id")
+  session   ChatSession  @relation(fields: [sessionId], references: [id])
+  // Who actually wrote this message. For an AI session this is always the
+  // session's own user (role below distinguishes their turns from the
+  // assistant's); for a peer thread it's whichever of the two participants sent it.
+  senderId  Int          @map("sender_id")
+  sender    User         @relation("MessageSender", fields: [senderId], references: [id])
+  // Only meaningful for AI sessions (USER vs ASSISTANT turn). Null for peer
+  // messages — senderId alone already says who spoke.
+  role      MessageRole?
+  content   String
+  readAt    DateTime?    @map("read_at")
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  @@map("messages")
+}
+
+model Escalation {
+  id            Int              @id @default(autoincrement())
+  sessionId     String           @unique @db.Uuid @map("session_id")
+  session       ChatSession      @relation(fields: [sessionId], references: [id])
+  reason        String
+  status        EscalationStatus @default(OPEN)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  resolvedAt    DateTime?        @map("resolved_at")
+  notifications Notification[]
+
+  @@map("escalations")
+}
+
+enum NotificationType {
+  ESCALATION_OPENED
+  ESCALATION_ACKNOWLEDGED
+  ESCALATION_RESOLVED
+}
+
+// Escalation-driven notifications only — chat notifications are derived live
+// from unread Message rows (see apps/notifications/service/notifications.js)
+// rather than duplicated here, since Message.readAt is already the single
+// source of truth for that.
+model Notification {
+  id           Int              @id @default(autoincrement())
+  userId       Int              @map("user_id")
+  user         User             @relation(fields: [userId], references: [id])
+  type         NotificationType
+  title        String
+  body         String?
+  escalationId Int?             @map("escalation_id")
+  escalation   Escalation?      @relation(fields: [escalationId], references: [id])
+  isRead       Boolean          @default(false) @map("is_read")
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// One row per (agent, week) — the weekly escalation-resolution target a
+// team lead/admin sets for that agent. Actual resolution counts aren't
+// stored here; they're computed on read from Escalation rows (status =
+// RESOLVED, resolvedAt within the week, attributed via the escalation's
+// chat session owner) so the count is never allowed to drift from reality.
+model ProductivityTarget {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  user        User     @relation("ProductivityTargetUser", fields: [userId], references: [id])
+  // Always normalized to that week's Monday, 00:00 — see weekStartOf() in
+  // apps/productivity/service/productivity.js. Stored as DATE (no time/tz)
+  // so "week of 2026-08-24" means the same thing everywhere.
+  weekStart   DateTime @map("week_start") @db.Date
+  target      Int
+  setByUserId Int      @map("set_by_user_id")
+  setBy       User     @relation("ProductivityTargetSetBy", fields: [setByUserId], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, weekStart])
+  @@map("productivity_targets")
+}
+
+// One row per scheduled work block — a team lead/admin assigns these to an
+// agent to build their shift (e.g. "08:00-10:00 Morning Handoff"). A day's
+// "Personal Timeline" is just every block for that user whose range touches
+// that calendar day; "on shift right now" (for the Shift Peers view) is
+// derived the same way, by checking startsAt/endsAt against the current
+// time — never stored, so it can't go stale.
+model ShiftBlock {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id")
+  user            User     @relation("ShiftBlockUser", fields: [userId], references: [id])
+  startsAt        DateTime @map("starts_at")
+  endsAt          DateTime @map("ends_at")
+  task            String
+  createdByUserId Int      @map("created_by_user_id")
+  createdBy       User     @relation("ShiftBlockCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, startsAt])
+  @@map("shift_blocks")
+}
+
+model KnowledgeBaseEntry {
+  id        Int      @id @default(autoincrement())
+  topic     String
+  content   String
+  embedding Unsupported("vector(1536)")?
+  tags      String
+  isActive  Boolean  @default(true) @map("is_active")
+  updatedBy Int?     @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+ 
+  @@map("knowledge_base_entries")
+}
+
+model ApiUsageLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  sessionId  Int?     @map("session_id")
+  tokensUsed Int?     @map("tokens_used")
+  createdAt  DateTime @default(now()) @map("created_at")
+ 
+  @@map("api_usage_logs")
+}
+
+model Audit {
+  requestId       String    @id @default(uuid()) @db.Uuid @map("request_id")
+  ts              DateTime  @default(now())
+  email           String
+  captureSource   String    @map("capture_source")
+  ticketChars     Int?      @map("ticket_chars")
+  suggestionChars Int?      @map("suggestion_chars")
+  kbHits          Int?      @map("kb_hits")
+  rating          String?
+  ticketText      String    @map("ticket_text")
+  ticketEmbedding Unsupported("vector(1536)")? @map("ticket_embedding")
+  matchedSection  String    @map("matched_section")
+  choice          Int
+  overrideSection String    @map("override_section")
+  sessionId       String?   @db.Uuid @map("session_id")
+
+  @@map("audit")
+}
+

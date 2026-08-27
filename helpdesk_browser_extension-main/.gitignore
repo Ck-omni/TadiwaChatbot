@@ -1,0 +1,8 @@
+# Secrets & config — never commit
+deploy/.env
+*.pem
+*.crx
+
+# Python
+__pycache__/
+*.pyc

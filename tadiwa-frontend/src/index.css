@@ -1,0 +1,46 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+/* Class-based dark mode (Tailwind v4 CSS-first config): `dark:` utilities
+   respond to a `.dark` class on <html>, which ThemeContext toggles — not to
+   the OS media query directly. This is what makes an explicit "light" or
+   "dark" choice override the system preference; "system" is resolved to
+   that same class in JS so both paths go through one mechanism. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  body {
+    @apply font-sans m-0 p-0;
+    background: radial-gradient(circle at top left, #ffffff, #f8fafc, #eef2f7);
+    color: #0f172a;
+    min-height: 100vh;
+  }
+
+  .dark body {
+    background: radial-gradient(circle at top left, #1e293b, #0f172a, #05070d);
+    color: #f1f5f9;
+  }
+}
+
+@layer utilities {
+  .glass-surface {
+    @apply bg-white/10 backdrop-blur-lg ;
+  }
+
+  .glass-surface-heavy {
+    @apply bg-white/60 backdrop-blur-xl ;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

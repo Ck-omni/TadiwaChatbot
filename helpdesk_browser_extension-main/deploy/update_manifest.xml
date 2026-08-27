@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Self-hosted update manifest for force-install.
+     Host this file + the .crx on an internal HTTPS server, e.g.
+     https://tools.yourcompany.local/copilot/update_manifest.xml
+     Replace EXTENSION_ID with the ID generated when you pack the .crx,
+     and bump version to match manifest.json on every release. -->
+<gupdate xmlns="http://www.google.com/update2/response" protocol="2.0">
+  <app appid="EXTENSION_ID">
+    <updatecheck
+      codebase="https://tools.yourcompany.local/copilot/zsmart-copilot.crx"
+      version="0.1.0" />
+  </app>
+</gupdate>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZSmart Ticket Copilot</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <header class="bar">
+    <div class="bar-brand">
+      <span class="bar-dot" aria-hidden="true"></span>
+      <span>Ticket Copilot</span>
+    </div>
+    <div class="bar-right">
+      <span id="ticketBadge" class="bar-ticket" hidden></span>
+      <span id="userChip" class="bar-user" hidden></span>
+      <button id="logoutBtn" type="button" class="btn-link bar-logout" hidden>Sign out</button>
+    </div>
+  </header>
+
+  <section id="loginView" class="login-view">
+    <div class="card login-card">
+      <h2>Sign in</h2>
+      <p class="muted">Use your Omni Helpdesk console account to use the copilot.</p>
+      <form id="loginForm" novalidate>
+        <label class="field-label" for="loginEmail">Email</label>
+        <input id="loginEmail" type="email" autocomplete="username" required />
+        <label class="field-label" for="loginPassword">Password</label>
+        <input id="loginPassword" type="password" autocomplete="current-password" required />
+        <button id="loginBtn" type="submit" class="btn btn-primary">Sign in</button>
+        <p id="loginError" class="status" hidden></p>
+      </form>
+    </div>
+  </section>
+
+  <main id="appView" hidden>
+    <section class="capture">
+      <button id="captureBtn" class="btn btn-primary">Read ticket on screen</button>
+      <div class="capture-mode">
+        <label><input type="radio" name="mode" value="auto" checked /> Auto</label>
+        <label><input type="radio" name="mode" value="selection" /> Highlighted text only</label>
+      </div>
+      <p id="captureInfo" class="muted" hidden></p>
+    </section>
+
+    <section id="ticketPreview" class="card" hidden>
+      <div class="card-head">
+        <h2>Captured ticket</h2>
+        <button id="editToggle" class="btn-link">Edit</button>
+      </div>
+      <textarea id="ticketText" rows="8" readonly></textarea>
+    </section>
+
+    <section class="card">
+      <label class="field-label" for="extraContext">Anything to add? (optional)</label>
+      <input id="extraContext" type="text" placeholder="e.g. customer already rebooted the ONT" />
+      <button id="askBtn" class="btn btn-primary" disabled>Suggest resolution</button>
+    </section>
+
+    <section id="activityCard" class="card activity-card" hidden>
+      <div class="card-head">
+        <h2>How it worked</h2>
+      </div>
+      <div id="activity" class="activity"></div>
+    </section>
+
+    <section id="answerCard" class="card answer" hidden>
+      <div class="card-head">
+        <h2>Suggested resolution</h2>
+        <button id="copyBtn" class="btn-link">Copy</button>
+      </div>
+      <div id="matchedHeader" class="matched" hidden></div>
+      <div id="answer" class="answer-body"></div>
+      <div class="feedback">
+        <span class="muted">Was this useful?</span>
+        <button id="fbUp" class="btn-fb" title="Helpful">&#128077;</button>
+        <button id="fbDown" class="btn-fb" title="Not helpful">&#128078;</button>
+        <span id="fbThanks" class="muted" hidden>Thanks — logged.</span>
+      </div>
+    </section>
+
+    <p id="status" class="status" hidden></p>
+  </main>
+
+  <footer class="muted foot">
+    On-prem only — ticket text goes to your internal backend, never the internet.
+  </footer>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

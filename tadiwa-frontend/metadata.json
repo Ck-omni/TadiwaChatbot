@@ -1,0 +1,6 @@
+{
+  "name": "Tadiwa - Omni Helpdesk Assistant",
+  "description": "A highly skilled and friendly IT Helpdesk Assistant for Omni Contact, designed to help call center agents resolve customer queries about Econet bundles and troubleshooting.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["AI Chat", "Voice Interaction"]
+}

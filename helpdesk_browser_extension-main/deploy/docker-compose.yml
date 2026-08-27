@@ -1,0 +1,60 @@
+# Postgres (with pgvector) + the FastAPI backend.
+# The backend creates the schema (tables + HNSW/GIN indexes) automatically on
+# startup. The local LLM is NOT run here — point LLM_BASE_URL/EMBED_BASE_URL in
+# .env at your existing internal OpenAI-compatible endpoint.
+#
+#   cp .env.example .env   &&   edit .env
+#   docker compose up -d --build
+#   docker compose run --rm backend python ingest.py BSS_steps.md
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: copilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: copilot
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U copilot -d copilot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # No host port published in production — only the backend needs the DB.
+    # Uncomment for local debugging:
+    # ports: ["5432:5432"]
+
+  # Local embeddings model (your LLM server is chat-only). OpenAI-compatible at
+  # http://ollama:11434/v1. After first `up`, pull the model once:
+  #   docker compose exec ollama ollama pull nomic-embed-text
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    # Uncomment to use a host GPU (otherwise CPU — fine for embeddings):
+    # deploy:
+    #   resources: { reservations: { devices: [{ capabilities: ["gpu"] }] } }
+
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    env_file: .env
+    environment:
+      # Fixed to the db service; overrides anything in .env.
+      DATABASE_URL: postgres://copilot:${POSTGRES_PASSWORD:-change-me}@db:5432/copilot
+    ports:
+      - "8080:8080"          # front this with nginx/IIS for TLS + SSO in prod
+    volumes:
+      - ../BSS_steps.md:/app/BSS_steps.md:ro
+      - ../dev:/app/dev:ro          # eval harness + gap_report run via `compose run`
+
+volumes:
+  pgdata:
+  ollama:

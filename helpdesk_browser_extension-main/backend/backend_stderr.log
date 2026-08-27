@@ -1,0 +1,15 @@
+INFO:     Loading environment from '../.env'
+INFO:     Started server process [37552]
+INFO:     Waiting for application startup.
+2026-08-07 11:08:38,891 WARNING ALLOWED_ORIGINS is '*' — any page can call this API, including the unauthenticated /api/ingest (KB poisoning risk). Fine for local dev; in production set ALLOWED_ORIGINS=chrome-extension://<id> (SECURITY.md).
+2026-08-07 11:08:38,892 WARNING DOMAIN_API_KEY is unset — the X-Api-Key checkpoint is disabled and every route (including /api/ingest) is reachable with no authentication at all. Fine for local dev; always set DOMAIN_API_KEY in production (SECURITY.md).
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+2026-08-07 11:18:44,660 INFO HTTP Request: POST http://127.0.0.1:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-07 11:18:44,692 INFO [c6d3b9d3] retrieved 5 candidates: BSS › Line Reconnection › Steps for reconnection(0.749) | BSS › SIM Card Replacement(0.746) | BSS › One-Way Block or Two-Way Block Activation and Deactivation › Steps for activation(0.726) | BSS › One-Way Block or Two-Way Block Activation and Deactivation › Steps for deactivation(0.719) | Basic Troubleshooting › Hanging Orders / Incomplete Orders › Steps for hanging order for SIM replacement(0.699)
+2026-08-07 11:19:13,799 INFO HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-07 11:19:13,802 INFO [c6d3b9d3] chose #2 -> BSS › SIM Card Replacement (customer needs a replacement SIM card linked to their existing MSISDN.)
+2026-08-07 11:22:06,177 INFO HTTP Request: POST http://127.0.0.1:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-07 11:22:06,183 INFO [6d660ae3] retrieved 5 candidates: BSS › Line Reconnection › Steps for reconnection(0.749) | BSS › SIM Card Replacement(0.746) | BSS › One-Way Block or Two-Way Block Activation and Deactivation › Steps for activation(0.726) | BSS › One-Way Block or Two-Way Block Activation and Deactivation › Steps for deactivation(0.719) | Basic Troubleshooting › Hanging Orders / Incomplete Orders › Steps for hanging order for SIM replacement(0.699)
+2026-08-07 11:22:08,695 INFO HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-07 11:22:08,699 INFO [6d660ae3] chose #2 -> BSS › SIM Card Replacement (Customer needs a new SIM card linked to their existing MSISDN for replacement.)

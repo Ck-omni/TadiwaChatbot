@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ticket Detail</title>
+  <style>
+    body { font: 13px/1.6 "Segoe UI", sans-serif; margin: 16px; color: #222; }
+    .row { display: flex; gap: 8px; margin-bottom: 6px; }
+    .row label { width: 110px; color: #667; }
+    textarea { width: 600px; height: 90px; font: inherit; }
+    table { border-collapse: collapse; margin-top: 8px; }
+    td, th { border: 1px solid #ccd; padding: 4px 10px; }
+  </style>
+</head>
+<body>
+  <div id="ticketDetail">
+    <h3>Trouble Ticket Detail</h3>
+    <div class="row"><label>Ticket No</label><span id="ticketNo">TT-2026-004512</span></div>
+    <div class="row"><label>Title</label><span id="title">Customer requesting SIM card replacement</span></div>
+    <div class="row"><label>Status</label><span id="status">Open</span></div>
+    <div class="row"><label>Priority</label><span id="priority">P3 - Medium</span></div>
+    <div class="row"><label>Fault Type</label><span id="faultType">SIM / Provisioning</span></div>
+    <div class="row"><label>Customer</label><span id="custName">T. Ncube (ACC [NUMBER])</span></div>
+    <div class="row"><label>Description</label>
+      <textarea id="description">Customer visited the shop after losing their SIM card and wants a replacement on the same number. A new SIM / ICCID needs to be linked to the existing MSISDN so the customer can keep their number. Customer's ID and account details were verified at the counter.</textarea>
+    </div>
+    <h4>Process Record</h4>
+    <table id="dealRecord">
+      <tr><th>Time</th><th>Operator</th><th>Action</th></tr>
+      <tr><td>10:22</td><td>agent03</td><td>Verified customer identity and account ownership at counter.</td></tr>
+      <tr><td>10:25</td><td>agent03</td><td>Confirmed line active, no outstanding suspension or block.</td></tr>
+    </table>
+  </div>
+</body>
+</html>

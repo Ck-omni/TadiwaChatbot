@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "ZSmart Ticket Copilot",
+  "version": "0.1.0",
+  "description": "Reads the open ZSmart v9 ticket and suggests resolution steps from your on-prem LLM. Internal use only.",
+  "minimum_chrome_version": "114",
+
+  "permissions": ["sidePanel", "contextMenus", "activeTab", "scripting", "storage"],
+
+  "host_permissions": [
+    "https://YOUR_ACTUAL_DOMAIN/*",
+    "http://copilot-backend.yourcompany.local/*",
+    "https://YOUR_TADIWA_BACKEND_DOMAIN/*",
+    "http://localhost/*"
+  ],
+
+  "background": { "service_worker": "background.js" },
+
+  "content_scripts": [
+    {
+      "matches": ["https://YOUR_ACTUAL_DOMAIN/*", "http://localhost/*"],
+      "js": ["content.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["fab.js"],
+      "all_frames": false,
+      "run_at": "document_idle"
+    }
+  ],
+
+  "web_accessible_resources": [
+    {
+      "resources": ["selectors.json"],
+      "matches": ["https://YOUR_ACTUAL_DOMAIN/*", "http://localhost/*"]
+    }
+  ],
+
+  "side_panel": { "default_path": "sidepanel.html" },
+
+  "action": {
+    "default_title": "ZSmart Ticket Copilot"
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

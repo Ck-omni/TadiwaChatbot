@@ -1,0 +1,13 @@
+AppError: Email is required
+    at file:///C:/Software/econet_projects/tadiwa/tadiwa-backend/apps/auth/controller/auth.js:10:13
+    at file:///C:/Software/econet_projects/tadiwa/tadiwa-backend/utils/asyncHandler.js:2:21
+    at Layer.handleRequest (C:\Software\econet_projects\tadiwa\tadiwa-backend\node_modules\router\lib\layer.js:152:17)
+    at next (C:\Software\econet_projects\tadiwa\tadiwa-backend\node_modules\router\lib\route.js:157:13)
+    at Route.dispatch (C:\Software\econet_projects\tadiwa\tadiwa-backend\node_modules\router\lib\route.js:117:3)
+    at handle (C:\Software\econet_projects\tadiwa\tadiwa-backend\node_modules\router\index.js:435:11)
+    at Layer.handleRequest (C:\Software\econet_projects\tadiwa\tadiwa-backend\node_modules\router\lib\layer.js:152:17)
+    at C:\Software\econet_projects\tadiwa\tadiwa-backend\node_modules\router\index.js:295:15
+    at processParams (C:\Software\econet_projects\tadiwa\tadiwa-backend\node_modules\router\index.js:582:12)
+    at next (C:\Software\econet_projects\tadiwa\tadiwa-backend\node_modules\router\index.js:291:5) {
+  statusCode: 400
+}
