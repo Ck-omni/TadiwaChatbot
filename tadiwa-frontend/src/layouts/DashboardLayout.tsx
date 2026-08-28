@@ -204,9 +204,15 @@ export default function DashboardLayout() {
           <NavItem to="/productivity" icon={<Target size={18} />} label="Productivity" collapsed={sidebarCollapsed} />
           <NavItem to="/history" icon={<Clock size={18} />} label="History" collapsed={sidebarCollapsed} />
           <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800">
-            <NavItem to="/knowledgeBase" icon={<Lightbulb size={18} />} label="Knowledge Base" collapsed={sidebarCollapsed} />
-            <NavItem to="/userManagement" icon={<Users size={18} />} label="User Management" collapsed={sidebarCollapsed} />
-            <NavItem to="/auditLog" icon={<Logs size={18} />} label="AuditLogs" collapsed={sidebarCollapsed} />
+            {(user?.role === 'TEAM_LEAD' || user?.role === 'ADMIN') && (
+              <NavItem to="/knowledgeBase" icon={<Lightbulb size={18} />} label="Knowledge Base" collapsed={sidebarCollapsed} />
+            )}
+            {user?.role === 'ADMIN' && (
+              <NavItem to="/userManagement" icon={<Users size={18} />} label="User Management" collapsed={sidebarCollapsed} />
+            )}
+            {(user?.role === 'TEAM_LEAD' || user?.role === 'ADMIN') && (
+              <NavItem to="/auditLog" icon={<Logs size={18} />} label="AuditLogs" collapsed={sidebarCollapsed} />
+            )}
             <NavItem to="/settings" icon={<Settings size={18} />} label="Settings" collapsed={sidebarCollapsed} />
             <NavItem to="/support" icon={<HelpCircle size={18} />} label="Help Center" collapsed={sidebarCollapsed} />
             <NavItem to="/ticketSamples" icon={<Book size={18} />} label="Ticket Samples" collapsed={sidebarCollapsed} />
