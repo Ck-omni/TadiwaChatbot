@@ -17,6 +17,7 @@ import History from './pages/History';
 import Settings from './pages/Settings';
 import HelpCenter from './pages/HelpCenter';
 import TeamComms from './pages/TeamComms';
+import UserManagement from './pages/UserManagement';
 import AuditLog from './pages/AuditLog';
 import TicketSamples from './pages/TicketSamples';
 
@@ -37,6 +38,7 @@ export default function App() {
                 <Route path="settings" element={<Settings />} />
                 <Route path="support" element={<HelpCenter />} />
                 <Route path="teamComms" element={<TeamComms />} />
+                <Route path="userManagement" element={<UserManagement />} />
                 <Route path="auditLog" element={<AuditLog />} />
                 <Route path='ticketSamples' element={<TicketSamples />} />
               </Route>
