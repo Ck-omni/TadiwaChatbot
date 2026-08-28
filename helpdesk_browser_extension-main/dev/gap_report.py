@@ -27,7 +27,7 @@ import os
 import asyncpg
 from pgvector.asyncpg import register_vector
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgres://copilot:copilot@localhost:5432/copilot")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/tadiwa")
 
 
 def cosine(a, b) -> float:

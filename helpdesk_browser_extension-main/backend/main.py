@@ -3,11 +3,26 @@ ZSmart Ticket Copilot — on-prem backend (PostgreSQL + pgvector).
 
 Extension -> this service -> local LLM. Nothing leaves the network.
 
+This service shares its database with the Omni Helpdesk console
+(tadiwa-backend) — both point at the same `tadiwa` Postgres database, not a
+separate `copilot` database of its own. Table/column names below are the
+ones actually used in `tadiwa`; a couple were renamed or already existed
+under a different name there (see each table's note) so as not to collide
+with tables tadiwa-backend already owns.
+
 PostgreSQL stores:
-  - audit          every request: who, when, which procedure was chosen (or
-                   none), the 👍/👎 rating / agent override, and — for
-                   knowledge-gap mining — the scrubbed ticket text + embedding
-  - kb_chunks      one row per guide procedure, with a pgvector embedding
+  - audit               every request: who, when, which procedure was chosen
+                   (or none), the 👍/👎 rating / agent override, and — for
+                   knowledge-gap mining — the scrubbed ticket text + embedding.
+                   Also read directly by tadiwa-backend (apps/audit,
+                   apps/dashboard) for the console's audit log and dashboard.
+  - knowledge_base_entries   one row per guide procedure, with a pgvector
+                   embedding. This is tadiwa-backend's own knowledge-base
+                   table (apps/knowledgeBase) — this service adds rows to it
+                   under its original kb_chunks column names (source,
+                   section, tags) rather than duplicating a second table;
+                   tadiwa's own manually-authored entries just leave those
+                   columns NULL.
 
 How /api/suggest answers (ANSWER_MODE=route, the default):
   1. RECALL  — embed the full ticket, semantic (cosine) search shortlists the
@@ -25,7 +40,9 @@ Every stage is emitted as a trace event: /api/suggest returns it as `trace`,
 /api/suggest/stream forwards it live over SSE, and it is logged to stdout.
 
 Environment variables:
-  DATABASE_URL      postgres://copilot:secret@db-host:5432/copilot
+  DATABASE_URL      postgres://user:secret@db-host:5432/tadiwa — the SAME
+                    database tadiwa-backend uses (DATABASE_URL in its own
+                    .env), not a separate `copilot` database.
   LLM_CHAT_STYLE    "openai" ({base}/chat/completions) or "custom_stream"
                     ({base}/chat/stream, {"messages":[...]}; in-house wrappers)
   LLM_CHAT_URL      optional full chat URL override
@@ -53,8 +70,8 @@ Environment variables:
                           (default 60)
   SESSION_HISTORY_TURNS   prior turns spliced into the Decide-stage prompt
                           (default 8)
-  SESSION_RETENTION_DAYS  days chat_sessions/chat_turns rows are kept before
-                          dev/purge_sessions.py deletes them (default 30)
+  SESSION_RETENTION_DAYS  days copilot_sessions/chat_turns rows are kept
+                          before dev/purge_sessions.py deletes them (default 30)
 
 Run:
   pip install -r requirements.txt
@@ -81,7 +98,7 @@ from pydantic import BaseModel, Field, field_validator
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("copilot")
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgres://copilot:copilot@localhost:5432/copilot")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/tadiwa")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:11434/v1")
 LLM_MODEL = os.getenv("LLM_MODEL", "llama3.1:8b")
 # Chat API dialect:
@@ -134,10 +151,14 @@ SESSION_RETENTION_DAYS = int(os.getenv("SESSION_RETENTION_DAYS", "30"))
 SCHEMA = """
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- This is tadiwa-backend's own `audit` table (prisma/schema.prisma's Audit
+-- model) — this service is its only writer. Column names below match that
+-- model (e.g. `email`, not `username`: the caller's email, forwarded via
+-- X-Remote-User once the extension signs in against tadiwa-backend).
 CREATE TABLE IF NOT EXISTS audit (
     request_id        UUID PRIMARY KEY,
     ts                TIMESTAMPTZ NOT NULL,
-    username          TEXT NOT NULL,
+    email             TEXT NOT NULL,
     capture_source    TEXT,
     ticket_chars      INTEGER,
     suggestion_chars  INTEGER,
@@ -162,7 +183,12 @@ ALTER TABLE audit ADD COLUMN IF NOT EXISTS session_id       UUID;
 -- extension carries session_id forward across follow-up messages in the
 -- same panel session. last_active_at is the TTL clock (SESSION_TTL_MINUTES);
 -- a session past it is treated as gone and a fresh one is minted silently.
-CREATE TABLE IF NOT EXISTS chat_sessions (
+--
+-- Named copilot_sessions, not chat_sessions: tadiwa-backend already has a
+-- `chat_sessions` table (its ChatSession model) for agent<->agent peer
+-- messaging, with an incompatible shape (userId/recipientId FKs, no
+-- username/TTL). This table is this service's own, kept distinct on purpose.
+CREATE TABLE IF NOT EXISTS copilot_sessions (
     session_id     UUID PRIMARY KEY,
     username       TEXT NOT NULL,
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -173,28 +199,37 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
 -- fed to the LLM's Decide-stage prompt as prior context (see select_procedure).
 CREATE TABLE IF NOT EXISTS chat_turns (
     id          BIGSERIAL PRIMARY KEY,
-    session_id  UUID NOT NULL REFERENCES chat_sessions(session_id) ON DELETE CASCADE,
+    session_id  UUID NOT NULL REFERENCES copilot_sessions(session_id) ON DELETE CASCADE,
     ts          TIMESTAMPTZ NOT NULL DEFAULT now(),
     role        TEXT NOT NULL CHECK (role IN ('user','assistant')),
     content     TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS chat_turns_session_idx ON chat_turns(session_id, ts);
 
-CREATE TABLE IF NOT EXISTS kb_chunks (
-    id          BIGSERIAL PRIMARY KEY,
-    source      TEXT NOT NULL,            -- e.g. 'BSS_steps.md'
-    section     TEXT,                     -- heading path, e.g. 'BSS › SIM Card Replacement'
+-- This is tadiwa-backend's own `knowledge_base_entries` table (prisma/
+-- schema.prisma's KnowledgeBaseEntry model) — NOT a separate kb_chunks
+-- table. `topic` is tadiwa's pre-existing required column (used as this
+-- chunk's heading path, same value as `section`, so tadiwa's own
+-- knowledge-base UI has something sensible to display); source/section/tags
+-- are this service's original kb_chunks columns, added onto that table
+-- (NULL/empty for entries authored directly through tadiwa's KB UI).
+CREATE TABLE IF NOT EXISTS knowledge_base_entries (
+    id          SERIAL PRIMARY KEY,
+    topic       TEXT NOT NULL,
     content     TEXT NOT NULL,
-    created_at  TIMESTAMPTZ DEFAULT now(),
-    embedding   vector({dim}) NOT NULL
+    is_active   BOOLEAN NOT NULL DEFAULT true,
+    updated_by  INTEGER,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    embedding   vector({dim})
 );
 -- No vector index on purpose: an exact sequential scan is correct and fast to
 -- thousands of rows. Revisit (ivfflat/hnsw) only when the guide is much larger.
+ALTER TABLE knowledge_base_entries ADD COLUMN IF NOT EXISTS source  TEXT;
+ALTER TABLE knowledge_base_entries ADD COLUMN IF NOT EXISTS section TEXT;
 -- Classification tags submitted alongside a chunk via POST /api/ingest
 -- (bulk ingest.py leaves this NULL/empty — it has no tag input today).
--- Field name/shape is provisional pending the actual contract with the
--- HelpDesk submission form; a plain TEXT[] is cheap to rename or reshape.
-ALTER TABLE kb_chunks ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{{}}';
+ALTER TABLE knowledge_base_entries ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{{}}';
 """.format(dim=EMBED_DIM)
 
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
@@ -233,7 +268,7 @@ async def get_or_create_session(pool, session_id: uuid.UUID | None, username: st
     async with pool.acquire() as conn:
         if session_id is not None:
             row = await conn.fetchrow(
-                """UPDATE chat_sessions SET last_active_at = now()
+                """UPDATE copilot_sessions SET last_active_at = now()
                    WHERE session_id = $1
                      AND last_active_at > now() - make_interval(mins => $2)
                    RETURNING session_id""",
@@ -243,7 +278,7 @@ async def get_or_create_session(pool, session_id: uuid.UUID | None, username: st
                 return row["session_id"]
         new_id = uuid.uuid4()
         await conn.execute(
-            "INSERT INTO chat_sessions (session_id, username) VALUES ($1, $2)",
+            "INSERT INTO copilot_sessions (session_id, username) VALUES ($1, $2)",
             new_id, username,
         )
         return new_id
@@ -362,24 +397,31 @@ async def embed(text: str) -> list[float]:
         raise HTTPException(
             500,
             f"Embedding dim {len(vec)} != EMBED_DIM {EMBED_DIM}. "
-            "Set EMBED_DIM to match your embedding model and recreate kb_chunks.",
+            "Set EMBED_DIM to match your embedding model and re-embed knowledge_base_entries.",
         )
     return vec
 
 
 async def retrieve_similar(pool, query_vec, limit: int = RAG_TOP_K) -> list[asyncpg.Record]:
-    """Exact semantic search over kb_chunks: nearest procedures by cosine
-    similarity, best first. No index needed at this scale — a sequential scan
-    is exact and fast to thousands of rows. (A keyword/full-text arm was tried
-    and removed: at this KB size it never surfaced anything the vector search
-    missed, and its fusion ranking boosted distractor procedures. Reintroduce
-    deliberately if dev/eval ever shows an exact-token miss.)"""
+    """Exact semantic search over knowledge_base_entries: nearest procedures by
+    cosine similarity, best first. No index needed at this scale — a
+    sequential scan is exact and fast to thousands of rows. (A keyword/
+    full-text arm was tried and removed: at this KB size it never surfaced
+    anything the vector search missed, and its fusion ranking boosted
+    distractor procedures. Reintroduce deliberately if dev/eval ever shows an
+    exact-token miss.)
+
+    Scoped to is_active rows with an embedding — entries authored directly
+    through tadiwa's own knowledge-base UI have no embedding (and often no
+    section) and so can't be semantically matched; only chunks this service
+    itself ingested are ever candidates here."""
     async with pool.acquire() as conn:
         return await conn.fetch(
             """
             SELECT source, section, content,
                    1 - (embedding <=> $1) AS similarity
-            FROM kb_chunks
+            FROM knowledge_base_entries
+            WHERE is_active AND embedding IS NOT NULL
             ORDER BY embedding <=> $1
             LIMIT $2
             """,
@@ -647,7 +689,7 @@ async def run_suggest(pool, ticket: str, username: str, capture_source: str, ses
         async with pool.acquire() as conn:
             await conn.execute(
                 """INSERT INTO audit
-                   (request_id, ts, username, capture_source,
+                   (request_id, ts, email, capture_source,
                     ticket_chars, suggestion_chars, kb_hits,
                     ticket_text, ticket_embedding, matched_section, choice, session_id)
                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
@@ -779,7 +821,7 @@ async def procedure(section: str, req: Request):
     panel's clickable candidate list ("not this one? pick another")."""
     async with req.app.state.pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT source, section, content FROM kb_chunks WHERE section = $1",
+            "SELECT source, section, content FROM knowledge_base_entries WHERE section = $1 AND is_active",
             section,
         )
     if row is None:
@@ -807,19 +849,26 @@ async def ingest(body: IngestIn, req: Request):
     # `section` is optional — with no natural key to match on, a missing
     # section always appends rather than guessing what to replace.
     replaced = False
+    # knowledge_base_entries.topic is tadiwa's pre-existing required column
+    # (used for its own KB UI) — give it the same value as section (falling
+    # back to source when there's no section) so entries this service writes
+    # still display sensibly there.
+    topic = body.section or body.source
     try:
         async with req.app.state.pool.acquire() as conn:
             async with conn.transaction():
                 if body.section:
                     deleted = await conn.execute(
-                        "DELETE FROM kb_chunks WHERE source=$1 AND section=$2",
+                        "DELETE FROM knowledge_base_entries WHERE source=$1 AND section=$2",
                         body.source,
                         body.section,
                     )
                     replaced = deleted != "DELETE 0"
                 row = await conn.fetchrow(
-                    """INSERT INTO kb_chunks (source, section, content, embedding, tags)
-                       VALUES ($1,$2,$3,$4,$5) RETURNING id""",
+                    """INSERT INTO knowledge_base_entries
+                       (topic, source, section, content, embedding, tags, is_active)
+                       VALUES ($1,$2,$3,$4,$5,$6,true) RETURNING id""",
+                    topic,
                     body.source,
                     body.section,
                     content,
@@ -838,5 +887,7 @@ async def ingest(body: IngestIn, req: Request):
 @app.get("/healthz")
 async def healthz(req: Request):
     async with req.app.state.pool.acquire() as conn:
-        kb_count = await conn.fetchval("SELECT count(*) FROM kb_chunks")
+        kb_count = await conn.fetchval(
+            "SELECT count(*) FROM knowledge_base_entries WHERE is_active AND embedding IS NOT NULL"
+        )
     return {"ok": True, "model": LLM_MODEL, "embed_model": EMBED_MODEL, "kb_chunks": kb_count}

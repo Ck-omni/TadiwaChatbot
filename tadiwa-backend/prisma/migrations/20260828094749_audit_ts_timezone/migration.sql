@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "audit" ALTER COLUMN "ts" SET DATA TYPE TIMESTAMPTZ(3);

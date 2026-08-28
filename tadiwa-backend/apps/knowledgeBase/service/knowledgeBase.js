@@ -30,7 +30,17 @@ export const knowledgeBaseService = {
       data: { topic, content, updatedBy },
     });
   },
- 
+
+  // Same as create(), plus `source` — the original filename, for entries
+  // authored via POST /api/knowledge-base/upload (see textExtraction.js).
+  // Kept separate from create() so the plain JSON create contract
+  // (topic/content only) doesn't have to grow an upload-only field.
+  async createFromUpload({ topic, content, source }, updatedBy) {
+    return prisma.knowledgeBaseEntry.create({
+      data: { topic, content, source, updatedBy },
+    });
+  },
+
   async update(id, updates, updatedBy) {
     const existing = await prisma.knowledgeBaseEntry.findUnique({ where: { id } });
     if (!existing) {

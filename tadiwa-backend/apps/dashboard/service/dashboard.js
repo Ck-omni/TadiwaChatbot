@@ -1,5 +1,4 @@
 import { prisma } from "../../../lib/prismaClient.js";
-import { getCopilotDb } from "../../../lib/copilotDb.js";
 import { AppError } from "../../../utils/appError.js";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -42,21 +41,20 @@ async function getWeeklyResolutions(weekStart) {
 }
 
 // Chatbot-suggested KB section per request, this week, from the Chrome
-// extension's own database (see apps/audit for why it's a separate DB).
-// Best-effort: if that database is unreachable, the rest of the dashboard
-// shouldn't go down with it — just report an empty breakdown.
+// extension's `audit` rows (see helpdesk_browser_extension-main/backend/
+// main.py — it writes straight into this app's own `audit` table).
+// Best-effort: if the query fails, the rest of the dashboard shouldn't go
+// down with it — just report an empty breakdown.
 async function getTicketCategories(weekStart, weekEnd) {
   let rows;
   try {
-    const result = await getCopilotDb().query(
-      `SELECT COALESCE(matched_section, 'No KB Match') AS section, COUNT(*)::int AS count
-       FROM audit
-       WHERE ts >= $1 AND ts < $2
-       GROUP BY section
-       ORDER BY count DESC`,
-      [weekStart.toISOString(), weekEnd.toISOString()]
-    );
-    rows = result.rows;
+    rows = await prisma.$queryRaw`
+      SELECT COALESCE(matched_section, 'No KB Match') AS section, COUNT(*)::int AS count
+      FROM audit
+      WHERE ts >= ${weekStart} AND ts < ${weekEnd}
+      GROUP BY section
+      ORDER BY count DESC
+    `;
   } catch {
     return [];
   }

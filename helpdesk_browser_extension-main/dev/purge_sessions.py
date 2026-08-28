@@ -7,7 +7,7 @@ conversation" for LLM context — that's a short window (default 60 min) and is
 enforced live, at query time, by get_or_create_session(). It is NOT a delete.
 
 This script is the separate, longer-lived retention control: it deletes
-chat_sessions (and, via ON DELETE CASCADE, their chat_turns) whose
+copilot_sessions (and, via ON DELETE CASCADE, their chat_turns) whose
 last_active_at is older than SESSION_RETENTION_DAYS. Run it periodically
 (cron / scheduled task) the same way dev/gap_report.py is a manual/periodic
 tool rather than something main.py runs itself.
@@ -24,7 +24,7 @@ import os
 
 import asyncpg
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgres://copilot:copilot@localhost:5432/copilot")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/tadiwa")
 SESSION_RETENTION_DAYS = int(os.getenv("SESSION_RETENTION_DAYS", "30"))
 
 
@@ -33,7 +33,7 @@ async def main(days: int, dry_run: bool) -> None:
     try:
         if dry_run:
             count = await conn.fetchval(
-                "SELECT count(*) FROM chat_sessions WHERE last_active_at < now() - make_interval(days => $1)",
+                "SELECT count(*) FROM copilot_sessions WHERE last_active_at < now() - make_interval(days => $1)",
                 days,
             )
             print(f"Would delete {count} session(s) (and their turns via cascade) older than {days} day(s).")
@@ -42,7 +42,7 @@ async def main(days: int, dry_run: bool) -> None:
         # RETURNING gives an exact count without a second query; chat_turns
         # rows disappear automatically via the FK's ON DELETE CASCADE.
         deleted = await conn.fetch(
-            """DELETE FROM chat_sessions
+            """DELETE FROM copilot_sessions
                WHERE last_active_at < now() - make_interval(days => $1)
                RETURNING session_id""",
             days,

@@ -1,11 +1,15 @@
-import { getCopilotDb } from "../../../lib/copilotDb.js";
+import { prisma } from "../../../lib/prismaClient.js";
 import { AppError } from "../../../utils/appError.js";
 
-// Chrome-extension usage rows only — ticket_embedding is a pgvector column
-// (1536-dim) meant for offline gap-mining, not for a list UI, so it's never
-// selected here.
+// Chrome-extension usage rows, now written straight into this app's own
+// `audit` table (see helpdesk_browser_extension-main/backend/main.py — it
+// shares this database rather than keeping a separate one). ticket_embedding
+// is a pgvector column (768-dim) meant for offline gap-mining, not for a
+// list UI, so it's never selected here. The column is `email` (the caller's
+// email, forwarded via X-Remote-User); aliased back to `username` here so
+// the API contract this service already exposes doesn't change.
 const SELECT_COLUMNS = `
-  request_id, ts, username, capture_source, ticket_chars, suggestion_chars,
+  request_id, ts, email AS username, capture_source, ticket_chars, suggestion_chars,
   kb_hits, rating, matched_section, choice, override_section, session_id
 `;
 
@@ -23,7 +27,7 @@ export const auditService = {
 
     if (username) {
       params.push(`%${username}%`);
-      where.push(`username ILIKE $${params.length}`);
+      where.push(`email ILIKE $${params.length}`);
     }
     if (captureSource) {
       params.push(captureSource);
@@ -58,14 +62,14 @@ export const auditService = {
       LIMIT ${limitPlaceholder}
     `;
 
-    let result;
+    let rows;
     try {
-      result = await getCopilotDb().query(sql, params);
+      rows = await prisma.$queryRawUnsafe(sql, ...params);
     } catch (err) {
       throw new AppError(`Could not read audit log: ${err.message}`, 502);
     }
 
-    return result.rows.map((row) => ({
+    return rows.map((row) => ({
       requestId: row.request_id,
       ts: row.ts,
       username: row.username,

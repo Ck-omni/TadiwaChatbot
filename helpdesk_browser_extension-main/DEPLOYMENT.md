@@ -3,18 +3,22 @@
 Tailored to: **an existing internal LLM endpoint**, **containerized DB + backend**,
 and **force-installing into Chrome that is not centrally managed**.
 
-You run only two things on-prem: **PostgreSQL (pgvector)** and the **FastAPI
-backend**. The LLM/embeddings already exist — you just point the backend at them.
+You run only one thing on-prem yourself: the **FastAPI backend**. It shares
+its **PostgreSQL (pgvector)** database with the Omni Helpdesk console
+(tadiwa-backend) rather than running its own — point it at that same
+`tadiwa` database. The LLM/embeddings already exist — you just point the
+backend at them.
 
 ```
 [Agent Chrome + extension] --HTTPS--> [nginx/IIS: TLS + SSO] --> [backend] --> [your LLM endpoint]
                                                                       |
-                                                                 [Postgres+pgvector]
+                                                        [tadiwa Postgres+pgvector]
+                                                        (shared with tadiwa-backend)
 ```
 
 ---
 
-## 1. Bring up DB + backend (Docker Compose)
+## 1. Bring up the backend (Docker Compose)
 
 On the server (Docker / Docker Desktop, or a small Linux VM / WSL2):
 
@@ -25,17 +29,19 @@ docker compose up -d --build
 ```
 
 Edit `.env`:
-- `POSTGRES_PASSWORD` — set a real password.
+- `DATABASE_URL` — point at the SAME Postgres instance/`tadiwa` database
+  tadiwa-backend's own `DATABASE_URL` uses. This backend only ever adds rows
+  to tables tadiwa-backend already owns (`audit`, `knowledge_base_entries`)
+  plus two of its own (`copilot_sessions`, `chat_turns`) — see `main.py`'s
+  module docstring.
 - `LLM_BASE_URL`, `LLM_MODEL` — your existing endpoint. If it's an in-house
   streaming wrapper (not standard OpenAI `/chat/completions`), set
   `LLM_CHAT_STYLE=custom_stream` (and `LLM_CHAT_URL` if the path differs).
 - `EMBED_BASE_URL`, `EMBED_MODEL`, **`EMBED_DIM`** — the embedding dimension
-  **must** match the model (nomic-embed-text = 768). If your existing endpoint
-  doesn't serve embeddings, you need one that does (retrieval depends on it).
+  **must** match both the model (nomic-embed-text = 768) and whatever
+  dimension tadiwa's `knowledge_base_entries`/`audit` vector columns are
+  already set to — they must agree, since this is a shared table.
 - `ALLOWED_ORIGINS` — set after you know the extension id (step 4).
-
-> No DB port is published to the host in production — only the backend reaches
-> it. Uncomment the `ports` line in compose for local debugging only.
 
 ## 2. Load the knowledge base & verify
 
@@ -137,6 +143,7 @@ a `.reg`/registry setting fleet-wide:
 - [ ] Backend reachable only via the TLS+SSO proxy; port 8080 not exposed
 - [ ] Proxy sets `X-Remote-User` and strips any inbound copy
 - [ ] `.pem` backed up and access-controlled
-- [ ] `EMBED_DIM` matches the embedding model (`/healthz` returns the model)
-- [ ] `POSTGRES_PASSWORD` changed; `pgdata` volume on backed-up storage
+- [ ] `EMBED_DIM` matches both the embedding model and tadiwa's vector columns
+- [ ] `DATABASE_URL` points at tadiwa's real Postgres (backup policy is
+      whatever's already in place for that database — nothing new to manage)
 - [ ] `run_eval.py` passes against the live KB

@@ -1,4 +1,4 @@
-// This is your Prisma schema file,
+  // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 // Get a free hosted Postgres database in seconds: `npx create-db`
@@ -205,13 +205,23 @@ model KnowledgeBaseEntry {
   id        Int      @id @default(autoincrement())
   topic     String
   content   String
-  embedding Unsupported("vector(1536)")?
-  tags      String
+  embedding Unsupported("vector(768)")?
+  // Below: same shape as the Chrome extension's own kb_chunks table (see
+  // helpdesk_browser_extension-main/backend/main.py) — the extension now
+  // reads/writes this table directly instead of kb_chunks, under its
+  // original names. source is the guide file a chunk came from (e.g.
+  // 'BSS_steps.md'); section is its heading path (e.g. 'BSS › SIM Card
+  // Replacement'), used for exact-match lookups (GET /api/procedure) and
+  // citations. Both are NULL for entries created through this app's own
+  // knowledge-base UI, which has no such concept.
+  source    String?
+  section   String?
+  tags      String[] @default([])
   isActive  Boolean  @default(true) @map("is_active")
   updatedBy Int?     @map("updated_by")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
- 
+
   @@map("knowledge_base_entries")
 }
 
@@ -227,20 +237,66 @@ model ApiUsageLog {
 
 model Audit {
   requestId       String    @id @default(uuid()) @db.Uuid @map("request_id")
-  ts              DateTime  @default(now())
+  // @db.Timestamptz to match the Chrome extension's own audit table (see
+  // helpdesk_browser_extension-main/backend/main.py), which always writes
+  // an offset-aware UTC datetime here — a plain (timezone-less) timestamp
+  // column rejects that value outright.
+  ts              DateTime  @default(now()) @db.Timestamptz(3)
   email           String
   captureSource   String    @map("capture_source")
   ticketChars     Int?      @map("ticket_chars")
   suggestionChars Int?      @map("suggestion_chars")
   kbHits          Int?      @map("kb_hits")
   rating          String?
-  ticketText      String    @map("ticket_text")
-  ticketEmbedding Unsupported("vector(1536)")? @map("ticket_embedding")
-  matchedSection  String    @map("matched_section")
+  // Nullable below to match the Chrome extension's own audit table (see
+  // helpdesk_browser_extension-main/backend/main.py): ticket_text is NULL
+  // when STORE_TICKET_TEXT=0; matched_section is NULL when no procedure
+  // matched (the primary knowledge-gap signal); override_section is NULL
+  // until an agent overrides the routed choice via POST /api/feedback.
+  ticketText      String?   @map("ticket_text")
+  ticketEmbedding Unsupported("vector(768)")? @map("ticket_embedding")
+  matchedSection  String?   @map("matched_section")
   choice          Int
-  overrideSection String    @map("override_section")
+  overrideSection String?   @map("override_section")
   sessionId       String?   @db.Uuid @map("session_id")
 
   @@map("audit")
+}
+
+// Multi-turn dialogue state for the Chrome extension's ticket-copilot chat
+// (see helpdesk_browser_extension-main/backend/main.py). Named distinctly
+// from ChatSession/"chat_sessions" above — that table already serves the
+// unrelated agent<->agent peer-messaging feature (userId/recipientId,
+// no username or TTL tracking), so the extension's session concept gets
+// its own table rather than colliding with or overloading that one.
+model CopilotSession {
+  sessionId    String     @id @default(uuid()) @db.Uuid @map("session_id")
+  username     String
+  createdAt    DateTime   @default(now()) @map("created_at")
+  // TTL clock: a session past SESSION_TTL_MINUTES since last activity is
+  // treated as gone and a fresh one is minted silently (see
+  // get_or_create_session in main.py).
+  lastActiveAt DateTime   @default(now()) @map("last_active_at")
+  turns        ChatTurn[]
+
+  @@map("copilot_sessions")
+}
+
+// One row per message either side of a copilot conversation sent, fed to the
+// LLM's Decide-stage prompt as prior context (see select_procedure in
+// main.py). role is a plain 'user'/'assistant' string (CHECK-constrained at
+// the DB level, see migration), not the Message model's MessageRole enum —
+// this table is intentionally a straight port of the extension's own
+// chat_turns, not a merge into the peer-messaging Message model.
+model ChatTurn {
+  id        BigInt         @id @default(autoincrement())
+  sessionId String         @db.Uuid @map("session_id")
+  session   CopilotSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  ts        DateTime       @default(now())
+  role      String
+  content   String
+
+  @@index([sessionId, ts])
+  @@map("chat_turns")
 }
 

@@ -19,6 +19,7 @@ import HelpCenter from './pages/HelpCenter';
 import TeamComms from './pages/TeamComms';
 import AuditLog from './pages/AuditLog';
 import TicketSamples from './pages/TicketSamples';
+import KnowledgeBase from './pages/KnowledgeBase';
 
 export default function App() {
   return (
@@ -39,6 +40,7 @@ export default function App() {
                 <Route path="teamComms" element={<TeamComms />} />
                 <Route path="auditLog" element={<AuditLog />} />
                 <Route path='ticketSamples' element={<TicketSamples />} />
+                <Route path='knowledgeBase' element={<KnowledgeBase />} />
               </Route>
             </Route>
 

@@ -48,6 +48,33 @@ async function apiFetch<T>(path: string, options: RequestInit = {}, accessToken?
   return body.data;
 }
 
+// Like apiFetch, but for multipart/form-data (file uploads): the browser
+// must set its own Content-Type with the multipart boundary, so this
+// deliberately never sets one itself — only Authorization.
+async function apiUpload<T>(path: string, formData: FormData, accessToken?: string): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, { method: 'POST', body: formData, headers });
+  } catch {
+    throw new ApiError('Could not reach the server. Is the backend running?', 0);
+  }
+
+  let body: ApiEnvelope<T> | null = null;
+  try {
+    body = await res.json();
+  } catch {
+    // Non-JSON body — fall through, body stays null.
+  }
+
+  if (!res.ok || !body?.success) {
+    throw new ApiError(body?.message || `Request failed (${res.status})`, res.status);
+  }
+  return body.data;
+}
+
 export type UserRole = 'AGENT' | 'TEAM_LEAD' | 'ADMIN';
 
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -407,4 +434,71 @@ export const notificationsApi = {
   markAllRead: (accessToken: string) => apiFetch<null>('/notifications/read-all', { method: 'POST' }, accessToken),
 };
 
-export { apiFetch, API_BASE_URL };
+// One guide procedure/article. `source`/`section`/`tags`/`embedding` exist
+// for the Chrome extension's ticket-copilot ingestion (which writes into
+// this same table — see tadiwa-backend's apps/knowledgeBase and
+// helpdesk_browser_extension-main/backend/main.py); entries authored here
+// leave `section`/`tags` empty and, for a file upload, set `source` to the
+// original filename purely as a provenance note. There's no `embedding`
+// field here — Prisma treats that pgvector column as fully internal, so it
+// never reaches the API either way.
+export interface KnowledgeBaseEntry {
+  id: number;
+  topic: string;
+  content: string;
+  source: string | null;
+  section: string | null;
+  tags: string[];
+  isActive: boolean;
+  updatedBy: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateKnowledgeBaseInput {
+  topic: string;
+  content: string;
+}
+
+export interface UpdateKnowledgeBaseInput {
+  topic?: string;
+  content?: string;
+  isActive?: boolean;
+}
+
+// Extensions accepted by POST /knowledge-base/upload — kept in sync by hand
+// with ACCEPTED_EXTENSIONS in tadiwa-backend's textExtraction.js.
+export const KB_UPLOAD_ACCEPT = '.pdf,.docx,.txt,.md,.markdown';
+
+export const knowledgeBaseApi = {
+  // Any authenticated user. ADMIN can pass includeInactive to also see
+  // deactivated entries; the backend ignores the flag for anyone else.
+  list: (accessToken: string, includeInactive = false) =>
+    apiFetch<KnowledgeBaseEntry[]>(`/knowledge-base${includeInactive ? '?includeInactive=true' : ''}`, { method: 'GET' }, accessToken),
+
+  getById: (accessToken: string, id: number) =>
+    apiFetch<KnowledgeBaseEntry>(`/knowledge-base/${id}`, { method: 'GET' }, accessToken),
+
+  // ADMIN only — write the entry's text directly.
+  create: (accessToken: string, input: CreateKnowledgeBaseInput) =>
+    apiFetch<KnowledgeBaseEntry>('/knowledge-base', { method: 'POST', body: JSON.stringify(input) }, accessToken),
+
+  // ADMIN only — upload a document and let the backend extract its text.
+  // `topic` is optional; omitted, the backend falls back to the filename.
+  uploadFile: (accessToken: string, file: File, topic?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (topic?.trim()) formData.append('topic', topic.trim());
+    return apiUpload<KnowledgeBaseEntry>('/knowledge-base/upload', formData, accessToken);
+  },
+
+  // ADMIN only.
+  update: (accessToken: string, id: number, input: UpdateKnowledgeBaseInput) =>
+    apiFetch<KnowledgeBaseEntry>(`/knowledge-base/${id}`, { method: 'PUT', body: JSON.stringify(input) }, accessToken),
+
+  // ADMIN only — soft deactivate (isActive: false), not a hard delete.
+  deactivate: (accessToken: string, id: number) =>
+    apiFetch<KnowledgeBaseEntry>(`/knowledge-base/${id}`, { method: 'DELETE' }, accessToken),
+};
+
+export { apiFetch, apiUpload, API_BASE_URL };
