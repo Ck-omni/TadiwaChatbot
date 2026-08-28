@@ -101,9 +101,11 @@ Single chunks can also be added live via `POST /api/ingest`
 (`{source, section, content}`). With an empty KB everything still works —
 answers just say no procedure matched and give generic guidance.
 
-> **Migrating from an older build?** Recreate the knowledge table once —
-> `DROP TABLE IF EXISTS kb_tickets, kb_chunks;` — restart the backend and
-> re-run `ingest.py` (the schema simplified: no tsvector/indexes; the `audit`
+> **Migrating from an older build?** This backend now shares its database
+> with the Omni Helpdesk console (`tadiwa`, not a separate `copilot` db) —
+> see `main.py`'s module docstring. `knowledge_base_entries` is
+> tadiwa-backend's own table, so don't `DROP TABLE` it; instead just re-run
+> `ingest.py`, which deletes-and-replaces rows per `source` (the `audit`
 > table auto-migrates its new columns on startup).
 
 ### Measure retrieval quality

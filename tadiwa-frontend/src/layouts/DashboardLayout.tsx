@@ -5,6 +5,7 @@ import {
   Clock, User, HelpCircle, LogOut, MessageSquare, Settings, Target, TriangleAlert, User2Icon,
   Logs,
   Book,
+  Lightbulb,
   Users,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -203,6 +204,7 @@ export default function DashboardLayout() {
           <NavItem to="/productivity" icon={<Target size={18} />} label="Productivity" collapsed={sidebarCollapsed} />
           <NavItem to="/history" icon={<Clock size={18} />} label="History" collapsed={sidebarCollapsed} />
           <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800">
+            <NavItem to="/knowledgeBase" icon={<Lightbulb size={18} />} label="Knowledge Base" collapsed={sidebarCollapsed} />
             <NavItem to="/userManagement" icon={<Users size={18} />} label="User Management" collapsed={sidebarCollapsed} />
             <NavItem to="/auditLog" icon={<Logs size={18} />} label="AuditLogs" collapsed={sidebarCollapsed} />
             <NavItem to="/settings" icon={<Settings size={18} />} label="Settings" collapsed={sidebarCollapsed} />

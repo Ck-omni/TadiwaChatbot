@@ -1,5 +1,8 @@
 """
-Load a Markdown knowledge guide into the pgvector knowledge base (kb_chunks).
+Load a Markdown knowledge guide into the pgvector knowledge base
+(knowledge_base_entries — tadiwa-backend's own table; see main.py's SCHEMA
+for why this service writes into it directly rather than a separate
+kb_chunks table).
 
 Author the guide as Markdown with one heading region per procedure, e.g.:
 
@@ -39,7 +42,7 @@ import asyncpg
 import httpx
 from pgvector.asyncpg import register_vector
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgres://copilot:copilot@localhost:5432/copilot")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/tadiwa")
 EMBED_BASE_URL = os.getenv("EMBED_BASE_URL", os.getenv("LLM_BASE_URL", "http://localhost:11434/v1"))
 EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
 EMBED_DIM = int(os.getenv("EMBED_DIM", "768"))
@@ -143,7 +146,7 @@ async def run(args) -> None:
     chunks = parse_markdown(md)
     conn = await asyncpg.connect(DATABASE_URL)
     await register_vector(conn)
-    deleted = await conn.execute("DELETE FROM kb_chunks WHERE source=$1", source)
+    deleted = await conn.execute("DELETE FROM knowledge_base_entries WHERE source=$1", source)
     if deleted != "DELETE 0":
         print(f"Re-ingest: cleared existing rows for source '{source}'.")
 
@@ -168,10 +171,13 @@ async def run(args) -> None:
             # embed() truncates its INPUT at 8000 chars; the stored (and
             # returned) content is always the full procedure.
             vec = await embed(client, f"{EMBED_DOC_PREFIX}{section}\n{body}")
+            # topic is knowledge_base_entries' pre-existing required column
+            # (tadiwa's own KB UI) — give it the heading path too, same as
+            # main.py's /api/ingest does for single-chunk submissions.
             await conn.execute(
-                """INSERT INTO kb_chunks (source, section, content, embedding)
-                   VALUES ($1,$2,$3,$4)""",
-                source, section, body, vec,
+                """INSERT INTO knowledge_base_entries (topic, source, section, content, embedding, is_active)
+                   VALUES ($1,$2,$3,$4,$5,true)""",
+                section, source, section, body, vec,
             )
             ok += 1
             print(f"  ok    {section}")
