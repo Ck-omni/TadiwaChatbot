@@ -12,6 +12,7 @@ import productivityRoutes from './apps/productivity/routes/productivity.js';
 import scheduleRoutes from './apps/schedule/routes/schedule.js';
 import dashboardRoutes from './apps/dashboard/routes/dashboard.js';
 import notificationRoutes from './apps/notifications/routes/notifications.js';
+import assistantRoutes from './apps/assistant/routes/assistant.js';
 import errorHandler from './middleware/errorHandler.js';
 import helmetConfig from './config/helmetConfig.js';
 import corsOptions from './config/corsOptions.js';
@@ -35,6 +36,7 @@ app.use('/api/productivity', productivityRoutes);
 app.use('/api/schedule', scheduleRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/assistant', assistantRoutes);
 app.use(errorHandler);
 
 app.listen(port, () => {
