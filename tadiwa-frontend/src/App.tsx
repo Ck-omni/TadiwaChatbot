@@ -8,9 +8,10 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import RoleRoute from './components/RoleRoute';
 import DashboardLayout from './layouts/DashboardLayout';
 import Login from './pages/Login';
-import TechHub from './pages/TechHub';
+import Dashboard from './pages/Dashboard';
 import Schedule from './pages/Schedule';
 import Productivity from './pages/Productivity';
 import History from './pages/History';
@@ -32,17 +33,26 @@ export default function App() {
 
             <Route element={<ProtectedRoute />}>
               <Route element={<DashboardLayout />}>
-                <Route index element={<TechHub />} />
+                <Route index element={<Dashboard />} />
                 <Route path="schedule" element={<Schedule />} />
                 <Route path="productivity" element={<Productivity />} />
                 <Route path="history" element={<History />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="support" element={<HelpCenter />} />
                 <Route path="teamComms" element={<TeamComms />} />
-                <Route path="userManagement" element={<UserManagement />} />
-                <Route path="auditLog" element={<AuditLog />} />
+                <Route
+                  path="userManagement"
+                  element={<RoleRoute allow={['ADMIN']}><UserManagement /></RoleRoute>}
+                />
+                <Route
+                  path="auditLog"
+                  element={<RoleRoute allow={['TEAM_LEAD', 'ADMIN']}><AuditLog /></RoleRoute>}
+                />
                 <Route path='ticketSamples' element={<TicketSamples />} />
-                <Route path='knowledgeBase' element={<KnowledgeBase />} />
+                <Route
+                  path='knowledgeBase'
+                  element={<RoleRoute allow={['TEAM_LEAD', 'ADMIN']}><KnowledgeBase /></RoleRoute>}
+                />
               </Route>
             </Route>
 
