@@ -1,15 +1,19 @@
 INFO:     Loading environment from '../.env'
-INFO:     Started server process [37552]
+INFO:     Started server process [82292]
 INFO:     Waiting for application startup.
-2026-08-07 11:08:38,891 WARNING ALLOWED_ORIGINS is '*' â€” any page can call this API, including the unauthenticated /api/ingest (KB poisoning risk). Fine for local dev; in production set ALLOWED_ORIGINS=chrome-extension://<id> (SECURITY.md).
-2026-08-07 11:08:38,892 WARNING DOMAIN_API_KEY is unset â€” the X-Api-Key checkpoint is disabled and every route (including /api/ingest) is reachable with no authentication at all. Fine for local dev; always set DOMAIN_API_KEY in production (SECURITY.md).
+2026-08-31 10:05:04,591 WARNING ALLOWED_ORIGINS is '*' — any page can call this API, including the unauthenticated /api/ingest (KB poisoning risk). Fine for local dev; in production set ALLOWED_ORIGINS=chrome-extension://<id> (SECURITY.md).
+2026-08-31 10:05:04,591 WARNING DOMAIN_API_KEY is unset — the X-Api-Key checkpoint is disabled and every route (including /api/ingest) is reachable with no authentication at all. Fine for local dev; always set DOMAIN_API_KEY in production (SECURITY.md).
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
-2026-08-07 11:18:44,660 INFO HTTP Request: POST http://127.0.0.1:11434/v1/embeddings "HTTP/1.1 200 OK"
-2026-08-07 11:18:44,692 INFO [c6d3b9d3] retrieved 5 candidates: BSS â€º Line Reconnection â€º Steps for reconnection(0.749) | BSS â€º SIM Card Replacement(0.746) | BSS â€º One-Way Block or Two-Way Block Activation and Deactivation â€º Steps for activation(0.726) | BSS â€º One-Way Block or Two-Way Block Activation and Deactivation â€º Steps for deactivation(0.719) | Basic Troubleshooting â€º Hanging Orders / Incomplete Orders â€º Steps for hanging order for SIM replacement(0.699)
-2026-08-07 11:19:13,799 INFO HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
-2026-08-07 11:19:13,802 INFO [c6d3b9d3] chose #2 -> BSS â€º SIM Card Replacement (customer needs a replacement SIM card linked to their existing MSISDN.)
-2026-08-07 11:22:06,177 INFO HTTP Request: POST http://127.0.0.1:11434/v1/embeddings "HTTP/1.1 200 OK"
-2026-08-07 11:22:06,183 INFO [6d660ae3] retrieved 5 candidates: BSS â€º Line Reconnection â€º Steps for reconnection(0.749) | BSS â€º SIM Card Replacement(0.746) | BSS â€º One-Way Block or Two-Way Block Activation and Deactivation â€º Steps for activation(0.726) | BSS â€º One-Way Block or Two-Way Block Activation and Deactivation â€º Steps for deactivation(0.719) | Basic Troubleshooting â€º Hanging Orders / Incomplete Orders â€º Steps for hanging order for SIM replacement(0.699)
-2026-08-07 11:22:08,695 INFO HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
-2026-08-07 11:22:08,699 INFO [6d660ae3] chose #2 -> BSS â€º SIM Card Replacement (Customer needs a new SIM card linked to their existing MSISDN for replacement.)
+2026-08-31 10:06:49,046 INFO HTTP Request: POST http://127.0.0.1:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-31 10:06:49,070 INFO [ba0fd52e] retrieved 5 candidates: BSS › Line Reconnection › Steps for reconnection(0.648) | BSS › Adding and Removing of Basic and Additional Services on a Number › Steps to deactivate(0.64) | BSS › Adding and Removing of Basic and Additional Services on a Number › Steps to add on a prepaid line(0.636) | BSS › One-Way Block or Two-Way Block Activation and Deactivation › Steps for activation(0.634) | BSS › One-Way Block or Two-Way Block Activation and Deactivation › Steps for deactivation(0.628)
+2026-08-31 10:07:30,348 INFO HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-31 10:07:30,353 INFO [ba0fd52e] chose #0 -> NONE (No specific issue or need is clearly stated in the ticket.)
+2026-08-31 10:13:03,284 INFO HTTP Request: POST http://127.0.0.1:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-31 10:13:03,324 INFO [a5e77af7] retrieved 5 candidates: BSS › Line Reconnection › Steps for reconnection(0.658) | BSS › One-Way Block or Two-Way Block Activation and Deactivation › Steps for activation(0.643) | BSS › Adding and Removing of Basic and Additional Services on a Number › Steps to deactivate(0.642) | Basic Troubleshooting › Failing to Access USSD Codes › Steps(0.636) | BSS › One-Way Block or Two-Way Block Activation and Deactivation › Steps for deactivation(0.636)
+2026-08-31 10:14:03,111 INFO HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-31 10:14:03,116 INFO [a5e77af7] chose #0 -> NONE (The ticket does not specify any action related to blocking, unblocking, or reconnection. It only mentions failing to access the internet, which requires basic troubleshooting.)
+2026-08-31 10:15:42,163 INFO HTTP Request: POST http://127.0.0.1:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-31 10:15:42,169 INFO [3e90ac78] retrieved 5 candidates: BSS › Line Reconnection › Steps for reconnection(0.762) | BSS › One-Way Block or Two-Way Block Activation and Deactivation › Steps for deactivation(0.715) | BSS › One-Way Block or Two-Way Block Activation and Deactivation › Steps for activation(0.712) | Basic Troubleshooting › Hanging Orders / Incomplete Orders › Steps for hanging order for SIM replacement(0.695) | BSS › SIM Card Replacement(0.695)
+2026-08-31 10:15:55,059 INFO HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-31 10:15:55,064 INFO [3e90ac78] chose #5 -> BSS › SIM Card Replacement (SIM card not working after reconnection requires a replacement.)

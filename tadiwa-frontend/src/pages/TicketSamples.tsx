@@ -137,11 +137,11 @@ export default function TicketSamples() {
           <section>
             <SectionHeader title="Case Information" />
             <div className="space-y-4">
-              <FieldRow label="Case Service Type" value="Omni_Smartbiz Bundles(OmniContact Helpdesk Support)" />
+              <FieldRow label="Case Service Type" value="Omni_Poor Conn(OmniContact Helpdesk Support)" />
               <div className="flex gap-3 text-sm">
                 <span className="w-36 shrink-0 text-right text-slate-400 dark:text-slate-500 pt-2">Content:</span>
                 <div className="flex-1 min-h-24 px-4 py-3 border border-slate-200 rounded-lg text-sm text-slate-800 dark:border-slate-600 dark:text-slate-200">
-                  TEST
+                  Kindly assist customer who is failing to access the internet on his device 
                 </div>
               </div>
             </div>

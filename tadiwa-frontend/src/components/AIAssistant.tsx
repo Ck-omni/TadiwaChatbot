@@ -1,55 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Send, X, Bot, User, Loader2, Minimize2, Maximize2 } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
+import { MessageSquare, Send, X, Bot, Loader2, Minimize2, Maximize2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import Markdown from 'react-markdown';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-const SYSTEM_INSTRUCTION = `You are TADIWA, a highly specialized AI assistant for technical support technicians at Econet Zimbabwe.
-Your goal is to provide fast, accurate resolution steps based on the official knowledge base. Your name is TADIWA.
-
-CORE KNOWLEDGE BASE:
-
-1. SIM Card Replacement:
-- Authenticate on Back-Office Portal → Enter CCID → Process in Individual Portal.
-- Steps: Switch to Back-Office portal, Authenticate SIM card, Order Entry → Operations → SIM Replacement, Enter ICCID and Ticket ID.
-
-2. Line Reconnection:
-- Recycle disabled SIMs and bind to active service numbers.
-- Steps: Check SIM Lifecycle for 'disabled' state, Recycle if disabled, escalate if available, Perform SIM Card Binding, PPS First Dial in Operations.
-
-3. Hanging Orders:
-- Check Abnormal Work Orders and redo provisioning actions.
-- Steps: Provisioning → Dispatch Order Query, Copy Dispatch ID → Online Work Order Query, Check Abnormal Work Order tab, Authenticate HLR/HGIRI/Check In as needed.
-
-4. Roaming / USSD Fixes:
-- Verify HLR parameters and OBSSM restrictions.
-- Steps: Check cvBS and RSA 2-6 variants (Roaming), SUD command to remove OBSSM (USSD), Reset VLR/SGSN if restricted, Manual network selection advice.
-
-5. Adding GPRS/Telephony (Quick Action):
-- 1. Order Entry → Modify Offer
-- 2. Add Button → Search Service
-- 3. Waiver 100% (for bundles)
-
-6. Balance Adjustments & D.A (Quick Action):
-- 1. Account Receivable → Adjust
-- 2. Add Account Balance for new D.A
-- 3. Select Unit of Measurement
-
-7. Block/Suspension (Quick Action):
-- 1. Operations → Suspension/LOST
-- 2. Reactivation → Restore
-- 3. Enter Ticket ID → Confirm
-
-Always be professional, concise, and focused on SOP compliance. Use formatting to make steps clear.`;
+import { useAuth } from '../context/AuthContext';
+import { assistantApi, ApiError, type AssistantSource } from '../lib/api';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  // assistant messages only — the KB procedures the answer actually drew on.
+  sources?: AssistantSource[];
 }
 
+const STREAM_STATUS_LABEL: Record<string, string> = {
+  retrieving: 'Searching the knowledge base…',
+  context: 'Reviewing matching procedures…',
+  generating: 'Thinking…',
+};
+
 export default function AIAssistant() {
+  const { accessToken } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [input, setInput] = useState('');
@@ -57,7 +27,11 @@ export default function AIAssistant() {
     { role: 'assistant', content: "Hello! I'm TADIWA, your Omni HD Assistant. How can I help you with a technical resolution today?" }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  // Progress label shown in the streaming placeholder bubble before the
+  // first answer token arrives — null once real text starts rendering.
+  const [streamStatus, setStreamStatus] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -67,37 +41,66 @@ export default function AIAssistant() {
     scrollToBottom();
   }, [messages]);
 
+  // Don't leave a request (and the local model grinding on it) running
+  // against a chat the technician has navigated away from.
+  useEffect(() => () => abortRef.current?.abort(), []);
+
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !accessToken) return;
 
     const userMessage = input.trim();
+    // The backend re-embeds and re-retrieves off `message` each turn — send
+    // only the on-screen thread as history, not this new message.
+    const history = messages.map(m => ({ role: m.role, content: m.content }));
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
+    setStreamStatus(STREAM_STATUS_LABEL.retrieving);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    // Placeholder the answer streams into; index is fixed by this initial
+    // append (both this and history above happen before any state update
+    // schedule, so the assistant reply always lands right after the user's).
+    let assistantIndex = -1;
+    setMessages(prev => {
+      assistantIndex = prev.length + 1;
+      return [...prev, { role: 'user', content: userMessage }, { role: 'assistant', content: '' }];
+    });
+
+    const appendToAnswer = (delta: string) => {
+      setMessages(prev => prev.map((m, i) => (i === assistantIndex ? { ...m, content: m.content + delta } : m)));
+    };
+    const setAnswerContent = (content: string) => {
+      setMessages(prev => prev.map((m, i) => (i === assistantIndex ? { ...m, content } : m)));
+    };
+    const setAnswerSources = (sources: AssistantSource[]) => {
+      setMessages(prev => prev.map((m, i) => (i === assistantIndex ? { ...m, sources } : m)));
+    };
 
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          ...messages.map(m => ({
-            role: m.role === 'user' ? 'user' : 'model',
-            parts: [{ text: m.content }]
-          })),
-          { role: 'user', parts: [{ text: userMessage }] }
-        ],
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
-          maxOutputTokens: 500,
+      for await (const ev of assistantApi.askStream(accessToken, userMessage, history, controller.signal)) {
+        if (ev.stage === 'token' && ev.content) {
+          setStreamStatus(null);
+          appendToAnswer(ev.content);
+        } else if (ev.stage === 'done') {
+          if (ev.sources) setAnswerSources(ev.sources);
+        } else if (ev.stage === 'error') {
+          setStreamStatus(null);
+          setAnswerContent(ev.detail || "Sorry, I'm having trouble connecting to the network. Please check your session.");
+        } else {
+          setStreamStatus(STREAM_STATUS_LABEL[ev.stage] || null);
         }
-      });
-
-      const assistantMessage = response.text || "I'm sorry, I couldn't generate a response. Please try again.";
-      setMessages(prev => [...prev, { role: 'assistant', content: assistantMessage }]);
+      }
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return; // navigated away — not a real error
       console.error("AI Assistant Error:", error);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I'm having trouble connecting to the network. Please check your session." }]);
+      const message = error instanceof ApiError ? error.message : "Sorry, I'm having trouble connecting to the network. Please check your session.";
+      setAnswerContent(message);
     } finally {
       setIsLoading(false);
+      setStreamStatus(null);
+      abortRef.current = null;
     }
   };
 
@@ -170,21 +173,36 @@ export default function AIAssistant() {
                     ? "bg-blue-600 text-white rounded-tr-none"
                     : "bg-white text-slate-700 border border-slate-200 rounded-tl-none"
                 )}>
-                  {msg.role === 'assistant' ? (
+                  {msg.role === 'assistant' && msg.content === '' && isLoading && idx === messages.length - 1 ? (
+                    // This is the in-flight answer's placeholder bubble —
+                    // no tokens yet. Runs against a local model (can take up
+                    // to ~90s), so say what's happening rather than leaving
+                    // a bare spinner that reads as hung.
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />
+                      <span className="text-[10px] text-slate-400">{streamStatus || 'Working…'}</span>
+                    </div>
+                  ) : msg.role === 'assistant' ? (
                     <div className="prose prose-slate prose-xs max-w-none">
                       <Markdown>{msg.content}</Markdown>
                     </div>
                   ) : msg.content}
+                  {!!msg.sources?.length && (
+                    <div className="mt-3 pt-2 border-t border-slate-100 flex flex-wrap gap-1">
+                      {msg.sources.map((s, i) => (
+                        <span
+                          key={i}
+                          title={`${Math.round(s.similarity * 100)}% match`}
+                          className="text-[10px] font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded-md px-1.5 py-0.5"
+                        >
+                          {[s.topic, s.section].filter(Boolean).join(' › ')}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
-            {isLoading && (
-              <div className="flex items-start gap-2">
-                <div className="bg-white border border-slate-200 p-3 rounded-2xl rounded-tl-none">
-                  <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-                </div>
-              </div>
-            )}
             <div ref={messagesEndRef} />
           </div>
 

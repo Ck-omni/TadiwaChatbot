@@ -22,7 +22,50 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
-async function apiFetch<T>(path: string, options: RequestInit = {}, accessToken?: string): Promise<T> {
+// Wired up by AuthContext (see registerSessionHandlers) so this module —
+// which has no React state of its own — can silently refresh an expired
+// access token, or force a logout when the refresh token is also dead,
+// without every call site having to know about token expiry at all.
+interface SessionHandlers {
+  getRefreshToken: () => string | null;
+  onTokenRefreshed: (accessToken: string) => void;
+  onSessionExpired: () => void;
+}
+
+let sessionHandlers: SessionHandlers | null = null;
+
+export function registerSessionHandlers(handlers: SessionHandlers) {
+  sessionHandlers = handlers;
+}
+
+// Multiple requests can 401 at nearly the same moment (e.g. a page firing
+// several GETs on load). Dedupe them onto a single /auth/refresh call so
+// they all resolve against the same new token instead of racing.
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (!sessionHandlers) return null;
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const refreshToken = sessionHandlers!.getRefreshToken();
+      if (!refreshToken) return null;
+      try {
+        const { accessToken } = await authApi.refresh(refreshToken);
+        sessionHandlers!.onTokenRefreshed(accessToken);
+        return accessToken;
+      } catch {
+        // Refresh token expired/revoked, or the backend is unreachable —
+        // either way there's no session left to salvage.
+        return null;
+      }
+    })().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+async function rawRequest<T>(path: string, options: RequestInit, accessToken?: string): Promise<{ res: Response; body: ApiEnvelope<T> | null }> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as Record<string, string> | undefined) };
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
@@ -41,6 +84,27 @@ async function apiFetch<T>(path: string, options: RequestInit = {}, accessToken?
   } catch {
     // Non-JSON body (e.g. a proxy error page) — fall through, body stays null.
   }
+  return { res, body };
+}
+
+async function apiFetch<T>(path: string, options: RequestInit = {}, accessToken?: string): Promise<T> {
+  const { res, body } = await rawRequest<T>(path, options, accessToken);
+
+  // Only calls made *with* a bearer token are eligible for this — login,
+  // refresh, and logout itself never carry one, so they can't recurse into
+  // their own retry logic here.
+  if (res.status === 401 && accessToken) {
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) {
+      const retry = await rawRequest<T>(path, options, refreshedToken);
+      if (retry.res.ok && retry.body?.success) return retry.body.data;
+      throw new ApiError(retry.body?.message || `Request failed (${retry.res.status})`, retry.res.status);
+    }
+    // The access token was rejected and the refresh token couldn't rescue
+    // it (missing, expired, or revoked) — the session is over. Log the user
+    // out rather than leaving them staring at silent "unauthorized" errors.
+    sessionHandlers?.onSessionExpired();
+  }
 
   if (!res.ok || !body?.success) {
     throw new ApiError(body?.message || `Request failed (${res.status})`, res.status);
@@ -51,7 +115,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}, accessToken?
 // Like apiFetch, but for multipart/form-data (file uploads): the browser
 // must set its own Content-Type with the multipart boundary, so this
 // deliberately never sets one itself — only Authorization.
-async function apiUpload<T>(path: string, formData: FormData, accessToken?: string): Promise<T> {
+async function rawUpload<T>(path: string, formData: FormData, accessToken?: string): Promise<{ res: Response; body: ApiEnvelope<T> | null }> {
   const headers: Record<string, string> = {};
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
@@ -67,6 +131,21 @@ async function apiUpload<T>(path: string, formData: FormData, accessToken?: stri
     body = await res.json();
   } catch {
     // Non-JSON body — fall through, body stays null.
+  }
+  return { res, body };
+}
+
+async function apiUpload<T>(path: string, formData: FormData, accessToken?: string): Promise<T> {
+  const { res, body } = await rawUpload<T>(path, formData, accessToken);
+
+  if (res.status === 401 && accessToken) {
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) {
+      const retry = await rawUpload<T>(path, formData, refreshedToken);
+      if (retry.res.ok && retry.body?.success) return retry.body.data;
+      throw new ApiError(retry.body?.message || `Request failed (${retry.res.status})`, retry.res.status);
+    }
+    sessionHandlers?.onSessionExpired();
   }
 
   if (!res.ok || !body?.success) {
@@ -499,6 +578,108 @@ export const knowledgeBaseApi = {
   // ADMIN only — soft deactivate (isActive: false), not a hard delete.
   deactivate: (accessToken: string, id: number) =>
     apiFetch<KnowledgeBaseEntry>(`/knowledge-base/${id}`, { method: 'DELETE' }, accessToken),
+};
+
+// The in-app "TADIWA" AI Assistant (AIAssistant.tsx) — a RAG chat backed by
+// the same local Ollama models and the same knowledge_base_entries table
+// the Chrome extension's ticket-copilot uses. `history` is the prior
+// on-screen turns, oldest first, NOT including the new `message`.
+export interface AssistantHistoryTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface AssistantSource {
+  topic: string;
+  section: string | null;
+  source: string | null;
+  similarity: number;
+}
+
+export interface AssistantAskResponse {
+  answer: string;
+  sources: AssistantSource[];
+}
+
+// One line of /assistant/ask/stream's SSE body, already JSON.parsed.
+// 'retrieving'/'context'/'generating' are progress markers for the UI;
+// 'token' carries one chunk of the answer as it's generated; 'done' closes
+// out with the same `sources` shape ask() returns in one shot; 'error' is
+// a failure that happened after the stream already started (anything
+// before that — bad input, auth — is a normal HTTP error instead).
+export interface AssistantStreamEvent {
+  stage: 'retrieving' | 'context' | 'generating' | 'token' | 'done' | 'error';
+  content?: string; // stage === 'token'
+  sources?: AssistantSource[]; // stage === 'context' | 'done'
+  detail?: string; // stage === 'error'
+}
+
+async function rawAssistantStream(message: string, history: AssistantHistoryTurn[], accessToken: string, signal?: AbortSignal) {
+  return fetch(`${API_BASE_URL}/assistant/ask/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ message, history }),
+    signal,
+  });
+}
+
+export const assistantApi = {
+  ask: (accessToken: string, message: string, history: AssistantHistoryTurn[] = []) =>
+    apiFetch<AssistantAskResponse>(
+      '/assistant/ask',
+      { method: 'POST', body: JSON.stringify({ message, history }) },
+      accessToken
+    ),
+
+  // Same request as ask(), but yields progress/token events as the server
+  // sends them instead of waiting for the full answer — see
+  // AssistantStreamEvent. Not built on apiFetch (SSE isn't the
+  // {success,message,data} envelope) but shares its 401-refresh-and-retry
+  // behavior by hand, so an access token expiring mid-conversation doesn't
+  // just dead-end the chat.
+  async *askStream(
+    accessToken: string,
+    message: string,
+    history: AssistantHistoryTurn[] = [],
+    signal?: AbortSignal
+  ): AsyncGenerator<AssistantStreamEvent> {
+    let res = await rawAssistantStream(message, history, accessToken, signal);
+
+    if (res.status === 401) {
+      const refreshed = await refreshAccessToken();
+      if (!refreshed) {
+        sessionHandlers?.onSessionExpired();
+        throw new ApiError('Your session expired. Please sign in again.', 401);
+      }
+      res = await rawAssistantStream(message, history, refreshed, signal);
+    }
+
+    if (!res.ok || !res.body) {
+      throw new ApiError(`Request failed (${res.status})`, res.status);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let i: number;
+      while ((i = buf.indexOf('\n\n')) !== -1) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 2);
+        if (!line.startsWith('data:')) continue;
+        const payloadStr = line.slice(5).trim();
+        if (!payloadStr) continue;
+        try {
+          yield JSON.parse(payloadStr) as AssistantStreamEvent;
+        } catch {
+          // Malformed chunk — skip rather than blow up the whole stream.
+        }
+      }
+    }
+  },
 };
 
 export { apiFetch, apiUpload, API_BASE_URL };
