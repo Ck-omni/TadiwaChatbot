@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { authApi, ApiError, type BackendUser } from '../lib/api';
+import { authApi, ApiError, registerSessionHandlers, type BackendUser } from '../lib/api';
 
 export interface AuthUser {
   id: number;
@@ -18,6 +18,11 @@ interface AuthContextValue {
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  // True when the session was torn down automatically because the access
+  // token expired and the refresh token couldn't renew it — as opposed to
+  // the user clicking Logout. ProtectedRoute surfaces this on the redirect
+  // to /login so the reason isn't a silent mystery; login() clears it.
+  sessionExpired: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
   logout: () => void;
   // Re-fetches /auth/me and updates both context state and the stored
@@ -64,10 +69,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Wire the API layer's 401 handling back into this context: it has no
+  // React state of its own, so it calls back here to pull the current
+  // refresh token, persist a renewed access token, or tear the session
+  // down when the refresh token itself is dead. Registered once — these
+  // callbacks close over the stable setState functions, not stale state.
+  useEffect(() => {
+    registerSessionHandlers({
+      getRefreshToken: () => readStoredSession()?.refreshToken ?? null,
+      onTokenRefreshed: (newAccessToken) => {
+        const stored = readStoredSession();
+        if (stored) writeStoredSession({ ...stored, accessToken: newAccessToken });
+        setAccessToken(newAccessToken);
+      },
+      onSessionExpired: () => {
+        writeStoredSession(null);
+        setUser(null);
+        setAccessToken(null);
+        setSessionExpired(true);
+      },
+    });
+  }, []);
 
   // On mount, actively validate whatever session is stored — never just
-  // trust stale localStorage data. An expired access token gets one refresh
-  // attempt; if that also fails (or the backend is unreachable), the
+  // trust stale localStorage data. An expired access token gets refreshed
+  // transparently by apiFetch's own 401 handling (registered above); if
+  // that also fails (dead refresh token, or the backend unreachable), the
   // session is cleared and the user lands back on /login. This is stricter
   // than optimistically trusting local data, which is the right tradeoff
   // for an internal tool talking to a real auth backend.
@@ -84,23 +113,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const me = await authApi.me(stored.accessToken);
         if (cancelled) return;
+        // If the token had expired, apiFetch already refreshed it silently
+        // and persisted the new one via onTokenRefreshed — re-read storage
+        // so we pick that up instead of re-applying the stale one below.
+        const current = readStoredSession() ?? stored;
+        const nextSession = { ...current, user: me };
+        writeStoredSession(nextSession);
         setUser(toAuthUser(me));
-        setAccessToken(stored.accessToken);
+        setAccessToken(nextSession.accessToken);
       } catch {
-        try {
-          const { accessToken: refreshedToken } = await authApi.refresh(stored.refreshToken);
-          const me = await authApi.me(refreshedToken);
-          if (cancelled) return;
-          const nextSession = { ...stored, accessToken: refreshedToken, user: me };
-          writeStoredSession(nextSession);
-          setUser(toAuthUser(me));
-          setAccessToken(refreshedToken);
-        } catch {
-          if (cancelled) return;
-          writeStoredSession(null);
-          setUser(null);
-          setAccessToken(null);
-        }
+        // A genuine 401 already went through onSessionExpired above (which
+        // cleared storage/state); this also covers plain network errors,
+        // where it hasn't — clear here too so a stale session can't linger.
+        if (cancelled) return;
+        writeStoredSession(null);
+        setUser(null);
+        setAccessToken(null);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -117,6 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       writeStoredSession({ accessToken: result.accessToken, refreshToken: result.refreshToken, user: result.user });
       setUser(toAuthUser(result.user));
       setAccessToken(result.accessToken);
+      setSessionExpired(false);
       return { success: true };
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Unable to reach the server. Try again.';
@@ -133,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     writeStoredSession(null);
     setUser(null);
     setAccessToken(null);
+    setSessionExpired(false); // an explicit logout is not an "expired" one
     if (stored?.refreshToken) {
       authApi.logout(stored.refreshToken).catch(() => {});
     }
@@ -151,7 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, isAuthenticated: !!user, isLoading, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, accessToken, isAuthenticated: !!user, isLoading, sessionExpired, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

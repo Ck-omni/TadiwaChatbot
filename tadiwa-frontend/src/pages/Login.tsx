@@ -11,7 +11,13 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
+  // ProtectedRoute redirects here with `expired: true` when it was an
+  // auto-logout (token expiry) rather than the user clicking Logout — seed
+  // the banner from that instead of leaving them wondering why they're back
+  // at the login screen.
+  const [error, setError] = useState(
+    (location.state as { expired?: boolean })?.expired ? 'Your session expired. Please sign in again.' : ''
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (isAuthenticated) {
