@@ -98,6 +98,7 @@ export default function UserManagement() {
         )}
 
         {users !== null && users.length > 0 && (
+          <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className='dark:bg-blue-500 dark:text-white'>
               <tr className="border-b border-slate-200 dark:border-slate-600 text-sm  tracking-widest text-slate-400 dark:text-white">
@@ -164,6 +165,7 @@ export default function UserManagement() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

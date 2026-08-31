@@ -198,7 +198,7 @@ export default function DashboardLayout() {
         </div>
 
         <nav className={cn('flex-1 space-y-2', sidebarCollapsed ? 'p-2' : 'p-4')}>
-          <NavItem to="/" end icon={<BarChart3 size={18} />} label="Tech Hub" collapsed={sidebarCollapsed} />
+          <NavItem to="/" end icon={<BarChart3 size={18} />} label="Dashboard" collapsed={sidebarCollapsed} />
           <NavItem to="/schedule" icon={<Calendar size={18} />} label="Schedule" collapsed={sidebarCollapsed} />
           <NavItem to="/teamComms" icon={<Clock size={18} />} label="Team Comms" collapsed={sidebarCollapsed} />
           <NavItem to="/productivity" icon={<Target size={18} />} label="Productivity" collapsed={sidebarCollapsed} />

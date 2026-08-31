@@ -18,7 +18,7 @@ function queueZoneLabel(health: number) {
   return 'Red Zone';
 }
 
-export default function TechHub() {
+export default function Dashboard() {
   const { accessToken } = useAuth();
   const [chatMessage, setChatMessage] = React.useState('');
   const [teamMessages, setTeamMessages] = React.useState([
@@ -89,7 +89,7 @@ export default function TechHub() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
           title="Active Techs"
           value={summary ? String(summary.activeTechs) : '—'}
@@ -247,14 +247,14 @@ export default function TechHub() {
 
 function StatCard({ title, value, trend, icon }: { title: string, value: string, trend: string, icon: React.ReactNode }) {
   return (
-    <div className="bg-white dark:bg-transparent p-6 rounded-2xl border border-slate-200  hover:shadow-md overflow-hidden relative group transition-shadow dark:border-slate-700">
+    <div className="bg-white dark:bg-transparent p-6 rounded-2xl border border-slate-200  hover:shadow-md overflow-hidden relative group transition-shadow dark:border-slate-700 min-w-0">
       <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-slate-50 rounded-full blur-3xl group-hover:bg-slate-100 transition-colors"></div>
-      <div className="flex items-center justify-between mb-4">
-        <div className="p-2 bg-slate-100 rounded-xl border border-slate-200">{icon}</div>
-        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest dark:text-slate-300">{trend}</span>
+      <div className="flex items-start justify-between gap-2 mb-4">
+        <div className="p-2 bg-slate-100 rounded-xl border border-slate-200 shrink-0">{icon}</div>
+        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest dark:text-slate-300 text-right min-w-0 break-words">{trend}</span>
       </div>
-      <p className="text-sm text-slate-500 font-medium">{title}</p>
-      <h3 className="text-4xl font-bold mt-1 tracking-tighter text-slate-600 dark:text-slate-300">{value}</h3>
+      <p className="text-sm text-slate-500 font-medium break-words">{title}</p>
+      <h3 className="text-3xl sm:text-4xl font-bold mt-1 tracking-tighter text-slate-600 dark:text-slate-300 break-words">{value}</h3>
     </div>
   );
 }
