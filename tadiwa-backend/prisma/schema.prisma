@@ -117,10 +117,21 @@ model Message {
   @@map("messages")
 }
 
+// Raised either from a console AI/peer chat (sessionId) or from the Chrome
+// extension's Suggested Resolution panel (auditRequestId, set when an agent
+// marks a suggestion 👎 not helpful) — exactly one of the two is ever set
+// (enforced by the escalations_source_check CHECK constraint, since Prisma
+// can't express "exactly one of these FKs" declaratively). The extension
+// itself never writes this table directly (it isn't a shared table like
+// audit/copilot_sessions); it calls tadiwa-backend's own
+// /api/v1/copilot-escalations routes instead, so all creation/notification
+// logic stays in one place (see apps/escalations/service/escalations.js).
 model Escalation {
   id            Int              @id @default(autoincrement())
-  sessionId     String           @unique @db.Uuid @map("session_id")
-  session       ChatSession      @relation(fields: [sessionId], references: [id])
+  sessionId     String?          @unique @db.Uuid @map("session_id")
+  session       ChatSession?     @relation(fields: [sessionId], references: [id])
+  auditRequestId String?         @unique @db.Uuid @map("audit_request_id")
+  auditRequest  Audit?           @relation(fields: [auditRequestId], references: [requestId])
   reason        String
   status        EscalationStatus @default(OPEN)
   createdAt     DateTime         @default(now()) @map("created_at")
@@ -259,6 +270,9 @@ model Audit {
   choice          Int
   overrideSection String?   @map("override_section")
   sessionId       String?   @db.Uuid @map("session_id")
+  // Set when an agent marks this suggestion 👎 and escalates it from the
+  // extension panel — see Escalation.auditRequestId.
+  escalation      Escalation?
 
   @@map("audit")
 }

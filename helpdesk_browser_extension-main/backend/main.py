@@ -89,11 +89,17 @@ from datetime import datetime, timezone
 
 import asyncpg
 import httpx
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pgvector.asyncpg import register_vector
 from pydantic import BaseModel, Field, field_validator
+
+# Walks up from this file's directory looking for `.env`, so `uvicorn main:app`
+# picks up the repo-root .env regardless of the current working directory.
+# Never overrides a variable the environment already set (e.g. in Docker/prod).
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("copilot")
