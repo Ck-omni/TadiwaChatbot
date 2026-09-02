@@ -63,11 +63,19 @@ export const productivityService = {
 
     const userIds = users.map((u) => u.id);
     if (userIds.length === 0) return [];
+    const userIdByEmail = new Map(users.map((u) => [u.email, u.id]));
 
     // Resolution counts are computed from Escalation rows, never stored —
-    // "who resolved it" is attributed via the chat session's owner
-    // (session.userId), since Escalation itself doesn't track a resolver.
-    const [targets, resolvedEscalations] = await Promise.all([
+    // Escalation itself doesn't track a resolver, so "who resolved it" is
+    // attributed via whichever of its two mutually-exclusive sources this
+    // row came from (see schema.prisma's Escalation model):
+    //   - a console chat session -> that session's owner (session.userId)
+    //   - the Chrome extension's Suggested Resolution panel -> the agent
+    //     the underlying suggestion was for (auditRequest.email, resolved
+    //     to a userId below — Audit only stores an email, not a userId)
+    // so a technician's weekly count includes escalations they resolved
+    // either way.
+    const [targets, sessionResolved, auditResolved] = await Promise.all([
       prisma.productivityTarget.findMany({ where: { userId: { in: userIds }, weekStart: week } }),
       prisma.escalation.findMany({
         where: {
@@ -77,12 +85,25 @@ export const productivityService = {
         },
         select: { session: { select: { userId: true } } },
       }),
+      prisma.escalation.findMany({
+        where: {
+          status: "RESOLVED",
+          resolvedAt: { gte: week, lt: weekEnd },
+          auditRequest: { email: { in: users.map((u) => u.email) } },
+        },
+        select: { auditRequest: { select: { email: true } } },
+      }),
     ]);
 
     const targetByUser = new Map(targets.map((t) => [t.userId, t]));
     const resolvedByUser = new Map();
-    for (const esc of resolvedEscalations) {
+    for (const esc of sessionResolved) {
       const uid = esc.session.userId;
+      resolvedByUser.set(uid, (resolvedByUser.get(uid) ?? 0) + 1);
+    }
+    for (const esc of auditResolved) {
+      const uid = userIdByEmail.get(esc.auditRequest.email);
+      if (uid == null) continue;
       resolvedByUser.set(uid, (resolvedByUser.get(uid) ?? 0) + 1);
     }
 

@@ -1,0 +1,32 @@
+INFO:     127.0.0.1:50546 - "GET /healthz HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49981 - "POST /api/suggest/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63679 - "GET /api/procedure?section=BSS%20%E2%80%BA%20Line%20Reconnection%20%E2%80%BA%20Steps%20for%20reconnection HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63000 - "POST /api/feedback HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53290 - "POST /api/suggest/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59521 - "POST /api/suggest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51668 - "GET /api/v1/groups/a0d00f4f-3907-4e53-9f55-8a7868efddcb HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51669 - "GET /api/v1/audit HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51670 - "GET /api/v1/audit HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51671 - "GET /api/v1/groups/a0d00f4f-3907-4e53-9f55-8a7868efddcb HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63528 - "GET /api/v1/loans HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61191 - "GET /api/v1/loan-products HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61192 - "GET /api/v1/reports/portfolio-at-risk HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61193 - "GET /api/v1/approvals/pending HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61194 - "GET /api/v1/customers HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61195 - "GET /api/v1/groups HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51661 - "GET /api/v1/loans HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:62089 - "GET /api/v1/loan-products HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:62090 - "GET /api/v1/reports/portfolio-at-risk HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:62091 - "GET /api/v1/approvals/pending HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:62092 - "GET /api/v1/customers HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:62093 - "GET /api/v1/groups HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57963 - "POST /api/suggest/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60260 - "POST /api/feedback HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59531 - "POST /api/suggest/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51475 - "GET /api/procedure?section=BSS%20%E2%80%BA%20Line%20Reconnection%20%E2%80%BA%20Steps%20for%20reconnection HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53704 - "POST /api/suggest/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60151 - "POST /api/suggest/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52024 - "POST /api/feedback HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56655 - "POST /api/suggest/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56499 - "POST /api/feedback HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62898 - "POST /api/suggest/stream HTTP/1.1" 200 OK

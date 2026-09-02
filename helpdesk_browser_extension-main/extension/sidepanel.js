@@ -27,12 +27,19 @@ const AUTH_REFRESH_URL = "http://localhost:3004/api/auth/refresh";
 const AUTH_LOGOUT_URL = "http://localhost:3004/api/auth/logout";
 const AUTH_STORAGE_KEY = "copilotAuth";
 
+// Escalation tracking (tadiwa-backend's own Escalation model — see
+// prisma/schema.prisma's EscalationStatus enum) — raised here, not the
+// copilot backend, since all escalation business logic/notifications
+// already live in tadiwa-backend (apps/escalations).
+const ESCALATIONS_URL = "http://localhost:3004/api/copilot-escalations";
+
 const el = (id) => document.getElementById(id);
 let lastCapture = null;
 let lastRequestId = null;
 let lastMatchedSection = null;
 let userPick = null; // section the agent clicked in the candidate list, if any
 let currentSession = null; // { accessToken, refreshToken, email, fullName } once signed in
+let lastEscalation = null; // { id, status } once this answer has been escalated
 
 // ---- Auth (Omni Helpdesk console account) ----------------------------------
 // Gates the whole panel behind a login so every suggestion is attributable
@@ -65,6 +72,15 @@ async function authApiPost(url, body, accessToken) {
 
 async function authApiGet(url, accessToken) {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data || !data.success) throw new Error((data && data.message) || `Request failed (${res.status})`);
+  return data.data;
+}
+
+async function authApiPut(url, body, accessToken) {
+  const headers = { "Content-Type": "application/json" };
+  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+  const res = await fetch(url, { method: "PUT", headers, body: JSON.stringify(body) });
   const data = await res.json().catch(() => null);
   if (!res.ok || !data || !data.success) throw new Error((data && data.message) || `Request failed (${res.status})`);
   return data.data;
@@ -400,6 +416,8 @@ function renderAnswer(data) {
   el("fbThanks").hidden = true;
   el("fbUp").classList.remove("picked");
   el("fbDown").classList.remove("picked");
+  lastEscalation = null;
+  renderEscalationBox();
 }
 
 async function onAsk() {
@@ -487,6 +505,61 @@ async function sendFeedback(value, btn) {
   el("fbDown").classList.remove("picked");
   btn.classList.add("picked");
   el("fbThanks").hidden = false;
+  // Every rating — 👍 or 👎 — raises this suggestion's escalation (idempotent
+  // server-side; re-clicking a rating won't create duplicates), so any rated
+  // suggestion can be tracked through Open -> Acknowledged -> Resolved right
+  // here in the panel, and shows up in Escalation History either way.
+  await createEscalation(value);
+}
+
+// Raises (or, if one already exists for this suggestion, just re-fetches)
+// the escalation tied to the current answer's audit request.
+async function createEscalation(ratingValue) {
+  if (!lastRequestId || !currentSession) return;
+  try {
+    const verdict = ratingValue === "down" ? "not helpful" : "helpful";
+    const reason = lastMatchedSection
+      ? `Agent marked "${lastMatchedSection}" ${verdict}.`
+      : `Agent marked this suggestion ${verdict}.`;
+    const escalation = await authApiPost(
+      ESCALATIONS_URL,
+      { auditRequestId: lastRequestId, reason },
+      currentSession.accessToken
+    );
+    lastEscalation = { id: escalation.id, status: escalation.status };
+    renderEscalationBox();
+  } catch (e) {
+    setStatus(e.message || String(e));
+  }
+}
+
+async function setEscalationStatus(status) {
+  if (!lastEscalation || !currentSession) return;
+  try {
+    const escalation = await authApiPut(
+      `${ESCALATIONS_URL}/${lastEscalation.id}/status`,
+      { status },
+      currentSession.accessToken
+    );
+    lastEscalation = { id: escalation.id, status: escalation.status };
+    renderEscalationBox();
+  } catch (e) {
+    setStatus(e.message || String(e));
+  }
+}
+
+// OPEN -> can Acknowledge or Resolve; ACKNOWLEDGED -> can only Resolve;
+// RESOLVED is final (matches the 409 the backend returns past that point).
+function renderEscalationBox() {
+  const box = el("escalationBox");
+  if (!lastEscalation) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  el("escStatusLabel").textContent = `Escalation: ${lastEscalation.status}`;
+  el("escAckBtn").disabled = lastEscalation.status !== "OPEN";
+  el("escResolveBtn").disabled = lastEscalation.status === "RESOLVED";
 }
 
 el("captureBtn").addEventListener("click", onCapture);
@@ -501,6 +574,8 @@ el("editToggle").addEventListener("click", () => {
 });
 el("fbUp").addEventListener("click", (e) => sendFeedback("up", e.currentTarget));
 el("fbDown").addEventListener("click", (e) => sendFeedback("down", e.currentTarget));
+el("escAckBtn").addEventListener("click", () => setEscalationStatus("ACKNOWLEDGED"));
+el("escResolveBtn").addEventListener("click", () => setEscalationStatus("RESOLVED"));
 
 // Triggered by the context-menu flow in background.js.
 chrome.runtime.onMessage.addListener((msg) => {
