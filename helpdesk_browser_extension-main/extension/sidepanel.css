@@ -87,6 +87,7 @@ main { flex: 1; padding: 12px 14px; display: flex; flex-direction: column; gap: 
   padding: 8px 12px;
   cursor: pointer;
   border: 1px solid transparent;
+  margin-bottom: 5px;
   width: 100%;
 }
 .btn-primary { background: var(--accent-deep); color: #fff; font-weight: 600; }
@@ -99,6 +100,8 @@ main { flex: 1; padding: 12px 14px; display: flex; flex-direction: column; gap: 
 
 .capture-mode { display: flex; gap: 14px; margin-top: 8px; color: var(--ink-soft); }
 .capture-mode label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+.capture #resetBtn { display: block; margin-top: 8px; }
 
 textarea, input[type="text"], input[type="email"], input[type="password"] {
   width: 100%;

@@ -36,12 +36,14 @@
 
   <main id="appView" hidden>
     <section class="capture">
+      <button id="resetBtn" type="button" class="btn btn-primary" title="Clear the panel and start on a new ticket">New ticket</button>
       <button id="captureBtn" class="btn btn-primary">Read ticket on screen</button>
       <div class="capture-mode">
         <label><input type="radio" name="mode" value="auto" checked /> Auto</label>
         <label><input type="radio" name="mode" value="selection" /> Highlighted text only</label>
       </div>
       <p id="captureInfo" class="muted" hidden></p>
+      
     </section>
 
     <section id="ticketPreview" class="card" hidden>
