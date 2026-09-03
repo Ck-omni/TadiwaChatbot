@@ -278,6 +278,51 @@ async function onCapture() {
   }
 }
 
+// ---- "New ticket" reset ----------------------------------------------------
+// Puts the panel back to the exact state it's in right after sign-in, so an
+// agent can move to another ticket without closing/reopening the side panel
+// (which was the only way to get a clean slate before this).
+function resetPanel() {
+  lastCapture = null;
+  lastRequestId = null;
+  lastMatchedSection = null;
+  userPick = null;
+  lastEscalation = null;
+
+  document.querySelector("input[name=mode][value=auto]").checked = true;
+
+  const ticketText = el("ticketText");
+  ticketText.value = "";
+  ticketText.readOnly = true;
+  el("editToggle").textContent = "Edit";
+  el("ticketPreview").hidden = true;
+
+  const badge = el("ticketBadge");
+  badge.hidden = true;
+  badge.textContent = "";
+  const info = el("captureInfo");
+  info.hidden = true;
+  info.textContent = "";
+
+  el("extraContext").value = "";
+  el("askBtn").disabled = true;
+
+  el("activity").innerHTML = "";
+  el("activityCard").hidden = true;
+
+  el("answerCard").hidden = true;
+  el("answer").textContent = "";
+  const hdr = el("matchedHeader");
+  hdr.hidden = true;
+  hdr.classList.remove("warn");
+  el("fbThanks").hidden = true;
+  el("fbUp").classList.remove("picked");
+  el("fbDown").classList.remove("picked");
+  renderEscalationBox();
+
+  setStatus("");
+}
+
 // ---- Live activity log ("How it worked") ----------------------------------
 function clearActivity() {
   el("activity").innerHTML = "";
@@ -562,6 +607,7 @@ function renderEscalationBox() {
   el("escResolveBtn").disabled = lastEscalation.status === "RESOLVED";
 }
 
+el("resetBtn").addEventListener("click", resetPanel);
 el("captureBtn").addEventListener("click", onCapture);
 el("askBtn").addEventListener("click", onAsk);
 el("copyBtn").addEventListener("click", () =>
